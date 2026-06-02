@@ -1,1334 +1,608 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>fAIr field lab</title>
-
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-    <style>
-        :root {
-            --bg: #ffffff;
-            --ink: #1a1a1a;
-            --muted: #6f6f6f;
-            --faint: #9a9a9a;
-            --line: #e5e5e5;
-            --line2: #cccccc;
-            --black: #1a1a1a;
-            --red: #e01e26;
-            --red-d: #b3161d;
-            --red-tint: #fdeff0;
-            --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
-        }
-
-        * {
-            box-sizing: border-box
-        }
-
-        html,
-        body {
-            margin: 0;
-            height: 100%;
-            background: var(--bg);
-            color: var(--ink);
-            font-family: var(--sans);
-            overflow: hidden;
-            font-size: 14px;
-        }
-
-        #map {
-            position: fixed;
-            inset: 0;
-            background: #f4f4f4;
-            z-index: 0;
-        }
-
-        .leaflet-container {
-            background: #f4f4f4;
-            font-family: var(--sans);
-        }
-
-        .leaflet-control-attribution {
-            background: rgba(255, 255, 255, .82) !important;
-            color: #888 !important;
-            font-size: 9px !important;
-        }
-
-        .leaflet-control-attribution a {
-            color: #555 !important;
-        }
-
-        .leaflet-bar a {
-            background: #fff;
-            color: var(--ink);
-            border-color: var(--line2) !important;
-            font-weight: 600;
-        }
-
-        .leaflet-bar a:hover {
-            background: #f3f3f3;
-            color: var(--red);
-        }
-
-        .leaflet-tooltip {
-            font-family: var(--sans);
-            font-size: 12px;
-        }
-
-        .aoi {
-            filter: drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff);
-        }
-
-        .pred {
-            filter: drop-shadow(0 0 1px rgba(255, 255, 255, .95));
-        }
-
-        #fatal {
-            position: fixed;
-            inset: 0;
-            z-index: 9999;
-            display: none;
-            place-items: center;
-            background: #fff;
-        }
-
-        #fatal div {
-            max-width: 420px;
-            text-align: center;
-            padding: 30px;
-            border: 1px solid var(--black);
-        }
-
-        #fatal h3 {
-            font-size: 20px;
-            margin: 0 0 10px;
-            font-weight: 700;
-        }
-
-        #fatal p {
-            color: var(--muted);
-            font-size: 13px;
-            line-height: 1.6;
-        }
-
-        #panel {
-            position: fixed;
-            top: 0;
-            left: 0;
-            height: 100%;
-            width: 384px;
-            max-width: 92vw;
-            z-index: 500;
-            background: var(--bg);
-            border-right: 1px solid var(--black);
-            display: flex;
-            flex-direction: column;
-            transition: transform .3s ease;
-        }
-
-        #panel.collapsed {
-            transform: translateX(-100%);
-        }
-
-        #panel .head {
-            padding: 20px 22px 16px;
-            border-bottom: 2px solid var(--black);
-        }
-
-        #panel .head h1 {
-            font-size: 24px;
-            margin: 0;
-            line-height: 1;
-            font-weight: 700;
-            letter-spacing: -.3px;
-        }
-
-        #panel .head h1 b {
-            color: var(--red);
-        }
-
-        #panel .head .rule {
-            height: 3px;
-            background: var(--red);
-            width: 44px;
-            margin: 11px 0;
-        }
-
-        #panel .head p {
-            margin: 0;
-            font-size: 13px;
-            color: var(--muted);
-            line-height: 1.5;
-        }
-
-        .scroll {
-            overflow-y: auto;
-            flex: 1;
-            padding-bottom: 92px;
-        }
-
-        .scroll::-webkit-scrollbar {
-            width: 9px;
-        }
-
-        .scroll::-webkit-scrollbar-thumb {
-            background: #ddd;
-            border-radius: 9px;
-            border: 2px solid #fff;
-            background-clip: content-box;
-        }
-
-        .sec {
-            padding: 18px 22px;
-            border-bottom: 1px solid var(--line);
-        }
-
-        .sec h2 {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin: 0 0 13px;
-            font-size: 12px;
-            letter-spacing: .5px;
-            text-transform: uppercase;
-            color: var(--ink);
-            font-weight: 700;
-        }
-
-        .step {
-            display: inline-grid;
-            place-items: center;
-            width: 20px;
-            height: 20px;
-            border: 1.5px solid var(--red);
-            border-radius: 50%;
-            color: var(--red);
-            font-size: 11px;
-            flex: none;
-            font-weight: 700;
-            transition: .2s;
-        }
-
-        .sec.done .step {
-            background: var(--red);
-            color: #fff;
-        }
-
-        .sec .hint {
-            font-size: 11px;
-            color: var(--faint);
-            margin-left: auto;
-            text-transform: none;
-            font-weight: 400;
-        }
-
-        .row {
-            display: flex;
-            gap: 8px;
-        }
-
-        input[type=text],
-        input[type=number],
-        select,
-        textarea {
-            width: 100%;
-            background: #fff;
-            border: 1px solid var(--line2);
-            color: var(--ink);
-            font-family: var(--sans);
-            font-size: 13px;
-            padding: 9px 10px;
-            border-radius: 0;
-            outline: none;
-            transition: .12s;
-        }
-
-        input[type=number] {
-            font-family: var(--mono);
-        }
-
-        input:focus,
-        select:focus,
-        textarea:focus {
-            border-color: var(--red);
-            box-shadow: 0 0 0 1px var(--red);
-        }
-
-        input::placeholder {
-            color: var(--faint);
-        }
-
-        .chips {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            margin-top: 11px;
-        }
-
-        .chip {
-            font-size: 12px;
-            padding: 5px 11px;
-            border: 1px solid var(--line2);
-            color: var(--ink);
-            background: #fff;
-            cursor: pointer;
-            transition: .12s;
-        }
-
-        .chip:hover {
-            border-color: var(--red);
-            color: var(--red);
-        }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 7px;
-            cursor: pointer;
-            border: 1px solid var(--black);
-            background: #fff;
-            color: var(--ink);
-            font-family: var(--sans);
-            font-size: 12px;
-            padding: 9px 12px;
-            border-radius: 0;
-            transition: .12s;
-            width: 100%;
-            font-weight: 600;
-        }
-
-        .btn:hover {
-            background: var(--black);
-            color: #fff;
-        }
-
-        .btn:disabled {
-            opacity: .35;
-            cursor: not-allowed;
-        }
-
-        .btn.ghost {
-            border-color: var(--line2);
-            font-weight: 500;
-        }
-
-        .btn.ghost:hover {
-            background: #f3f3f3;
-            color: var(--ink);
-            border-color: var(--black);
-        }
-
-        .btn.mini {
-            width: auto;
-            padding: 7px 11px;
-            font-size: 12px;
-        }
-
-        #imgList {
-            margin-top: 13px;
-            display: flex;
-            flex-direction: column;
-            gap: 7px;
-            max-height: 290px;
-            overflow-y: auto;
-            padding-right: 2px;
-        }
-
-        #imgList::-webkit-scrollbar {
-            width: 7px
-        }
-
-        #imgList::-webkit-scrollbar-thumb {
-            background: #ddd;
-            border-radius: 7px
-        }
-
-        .icard {
-            display: flex;
-            gap: 11px;
-            padding: 8px;
-            border: 1px solid var(--line);
-            cursor: pointer;
-            transition: .12s;
-            align-items: center;
-        }
-
-        .icard:hover {
-            border-color: var(--ink);
-        }
-
-        .icard.sel {
-            border-color: var(--red);
-            background: var(--red-tint);
-            box-shadow: inset 2px 0 0 var(--red);
-        }
-
-        .icard img {
-            width: 54px;
-            height: 54px;
-            object-fit: cover;
-            flex: none;
-            background: #eee;
-            border: 1px solid var(--line);
-        }
-
-        .icard .meta {
-            min-width: 0;
-            flex: 1;
-        }
-
-        .icard .t {
-            font-size: 13px;
-            color: var(--ink);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            font-weight: 600;
-        }
-
-        .icard .d {
-            font-size: 11px;
-            color: var(--muted);
-            margin-top: 3px;
-            display: flex;
-            gap: 7px;
-            flex-wrap: wrap;
-        }
-
-        .tag {
-            font-size: 10px;
-            padding: 1px 6px;
-            border: 1px solid var(--line2);
-            color: var(--ink);
-        }
-
-        .tag.warn {
-            border-color: var(--red);
-            color: var(--red);
-        }
-
-        #imgCtl {
-            display: none;
-            margin-top: 13px;
-            padding-top: 13px;
-            border-top: 1px solid var(--line);
-        }
-
-        #modelList {
-            display: flex;
-            flex-direction: column;
-            gap: 7px;
-        }
-
-        .mcard {
-            display: flex;
-            align-items: center;
-            gap: 11px;
-            padding: 10px 12px;
-            border: 1px solid var(--line);
-            cursor: pointer;
-            transition: .12s;
-        }
-
-        .mcard:hover {
-            border-color: var(--ink);
-        }
-
-        .mcard.sel {
-            border-color: var(--red);
-            background: var(--red-tint);
-            box-shadow: inset 2px 0 0 var(--red);
-        }
-
-        .mcard .nm {
-            font-size: 14px;
-            flex: 1;
-            min-width: 0;
-            font-weight: 600;
-        }
-
-        .mcard .nm small {
-            display: block;
-            color: var(--muted);
-            font-size: 11px;
-            margin-top: 2px;
-            font-weight: 400;
-        }
-
-        .dot {
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            background: var(--red);
-            flex: none;
-        }
-
-        .task {
-            font-size: 10px;
-            padding: 2px 7px;
-            border: 1px solid var(--line2);
-            color: var(--ink);
-            white-space: nowrap;
-            text-transform: uppercase;
-        }
-
-        .pgrid {
-            display: flex;
-            flex-direction: column;
-            gap: 14px;
-        }
-
-        .pp .lab {
-            display: flex;
-            justify-content: space-between;
-            align-items: baseline;
-            font-size: 13px;
-            margin-bottom: 6px;
-        }
-
-        .pp .lab .k {
-            color: var(--ink);
-        }
-
-        .pp .lab .v {
-            color: var(--red);
-            font-weight: 600;
-            font-family: var(--mono);
-        }
-
-        .pp .ctl {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .pp input[type=range] {
-            flex: 1;
-            -webkit-appearance: none;
-            appearance: none;
-            height: 2px;
-            border-radius: 0;
-            background: linear-gradient(90deg, var(--red) var(--fill, 40%), #dcdcdc var(--fill, 40%));
-            outline: none;
-        }
-
-        .pp input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            background: var(--red);
-            border: 2px solid #fff;
-            box-shadow: 0 0 0 1px var(--red);
-            cursor: pointer;
-        }
-
-        .pp input[type=range]::-moz-range-thumb {
-            width: 13px;
-            height: 13px;
-            border-radius: 50%;
-            background: var(--red);
-            border: 2px solid #fff;
-            cursor: pointer;
-        }
-
-        .pp input[type=number] {
-            width: 80px;
-            flex: none;
-            text-align: right;
-            padding: 6px 8px;
-        }
-
-        .pp .desc {
-            font-size: 11px;
-            color: var(--faint);
-            margin-top: 6px;
-            line-height: 1.45;
-        }
-
-        .toggle {
-            display: inline-flex;
-            gap: 7px;
-            align-items: center;
-            cursor: pointer;
-            font-size: 12px;
-        }
-
-        .toggle input {
-            display: none;
-        }
-
-        .toggle .sw {
-            width: 32px;
-            height: 16px;
-            border: 1px solid var(--line2);
-            background: #fff;
-            position: relative;
-            transition: .15s;
-        }
-
-        .toggle .sw::after {
-            content: "";
-            position: absolute;
-            top: 2px;
-            left: 2px;
-            width: 10px;
-            height: 10px;
-            background: var(--muted);
-            transition: .15s;
-        }
-
-        .toggle input:checked+.sw {
-            border-color: var(--red);
-        }
-
-        .toggle input:checked+.sw::after {
-            left: 18px;
-            background: var(--red);
-        }
-
-        .bbox-read {
-            font-size: 12px;
-            color: var(--muted);
-            margin-top: 9px;
-            line-height: 1.6;
-        }
-
-        .bbox-read b {
-            color: var(--ink);
-            font-weight: 600;
-            font-family: var(--mono);
-        }
-
-        .minirow {
-            display: flex;
-            gap: 8px;
-            margin-top: 12px;
-            align-items: center;
-        }
-
-        #runWrap {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            padding: 14px 22px;
-            background: #fff;
-            border-top: 1px solid var(--black);
-        }
-
-        #runBtn {
-            border-color: var(--red);
-            background: var(--red);
-            color: #fff;
-            font-size: 13px;
-            padding: 13px;
-            font-weight: 700;
-        }
-
-        #runBtn:not(:disabled):hover {
-            background: var(--red-d);
-            border-color: var(--red-d);
-            color: #fff;
-        }
-
-        #runBtn:disabled {
-            background: #fff;
-            color: var(--faint);
-            border-color: var(--line2);
-        }
-
-        #status {
-            margin-top: 10px;
-            font-size: 12px;
-            line-height: 1.5;
-            min-height: 15px;
-            color: var(--muted);
-        }
-
-        #status .err {
-            color: var(--red);
-            font-weight: 600;
-        }
-
-        #status .ok {
-            color: var(--ink);
-            font-weight: 600;
-        }
-
-        #status .blink {
-            color: var(--red);
-            font-family: var(--mono);
-        }
-
-        #console {
-            position: fixed;
-            left: 384px;
-            right: 0;
-            bottom: 0;
-            z-index: 450;
-            background: #fff;
-            border-top: 2px solid var(--black);
-            transition: transform .28s, left .3s;
-            max-height: 48vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        #console.down {
-            transform: translateY(calc(100% - 40px));
-        }
-
-        #panel.collapsed~#console {
-            left: 0;
-        }
-
-        .cbar {
-            display: flex;
-            align-items: center;
-            gap: 11px;
-            padding: 10px 16px;
-            cursor: pointer;
-            border-bottom: 1px solid var(--line);
-        }
-
-        .cbar .ttl {
-            font-size: 12px;
-            letter-spacing: .5px;
-            text-transform: uppercase;
-            color: var(--ink);
-            font-weight: 700;
-        }
-
-        .tabs {
-            display: flex;
-            gap: 4px;
-        }
-
-        .ctab {
-            font-size: 12px;
-            padding: 4px 10px;
-            color: var(--muted);
-            cursor: pointer;
-            border: 1px solid transparent;
-        }
-
-        .ctab.on {
-            color: var(--red);
-            border-color: var(--red);
-        }
-
-        .cbar .sp {
-            flex: 1;
-        }
-
-        .chev {
-            width: 0;
-            height: 0;
-            border-left: 5px solid transparent;
-            border-right: 5px solid transparent;
-            border-top: 6px solid var(--muted);
-            transition: .28s;
-        }
-
-        #console.down .chev {
-            transform: rotate(180deg);
-        }
-
-        .cbody {
-            overflow: auto;
-            flex: 1;
-        }
-
-        pre {
-            margin: 0;
-            padding: 15px 18px;
-            font-size: 12.5px;
-            line-height: 1.65;
-            color: var(--ink);
-            white-space: pre;
-            tab-size: 2;
-            font-family: var(--mono);
-        }
-
-        pre .k {
-            color: var(--red);
-        }
-
-        pre .s {
-            color: #444;
-        }
-
-        pre .n {
-            color: var(--red-d);
-            font-weight: 600;
-        }
-
-        pre .c {
-            color: var(--faint);
-        }
-
-        #burger {
-            position: fixed;
-            top: 14px;
-            left: 14px;
-            z-index: 700;
-            height: 40px;
-            padding: 0 14px;
-            border: 1px solid var(--black);
-            background: #fff;
-            color: var(--ink);
-            display: none;
-            align-items: center;
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: 600;
-            font-family: var(--sans);
-        }
-
-        #fit {
-            position: fixed;
-            top: 14px;
-            right: 14px;
-            z-index: 700;
-        }
-
-        .empty {
-            font-size: 12px;
-            color: var(--faint);
-            padding: 8px 2px;
-            line-height: 1.6;
-        }
-
-        .empty b {
-            color: var(--muted);
-            font-weight: 600;
-        }
-
-        .spin {
-            display: inline-block;
-            width: 11px;
-            height: 11px;
-            border: 2px solid #ddd;
-            border-top-color: var(--red);
-            border-radius: 50%;
-            animation: sp .7s linear infinite;
-            vertical-align: -1px;
-        }
-
-        @keyframes sp {
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
-        @media(max-width:760px) {
-            #panel {
-                width: 340px;
-            }
-
-            #console {
-                left: 0 !important;
-                max-height: 42vh;
-            }
-
-            #burger {
-                display: flex;
-            }
-        }
-    </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>fAIr field lab</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+:root{
+  --bg:#ffffff; --ink:#1a1a1a; --muted:#6f6f6f; --faint:#9a9a9a;
+  --line:#e5e5e5; --line2:#cccccc; --black:#1a1a1a;
+  --red:#e01e26; --red-d:#b3161d; --red-tint:#fdeff0;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--sans);overflow:hidden;font-size:14px;}
+#map{position:fixed;inset:0;background:#f4f4f4;z-index:0;}
+.leaflet-container{background:#f4f4f4;font-family:var(--sans);}
+.leaflet-control-attribution{background:rgba(255,255,255,.82)!important;color:#888!important;font-size:9px!important;}
+.leaflet-control-attribution a{color:#555!important;}
+.leaflet-bar a{background:#fff;color:var(--ink);border-color:var(--line2)!important;font-weight:600;}
+.leaflet-bar a:hover{background:#f3f3f3;color:var(--red);}
+.leaflet-tooltip{font-family:var(--sans);font-size:12px;}
+.aoi{filter:drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff);}
+.pred{filter:drop-shadow(0 0 1px rgba(255,255,255,.95));}
+
+#fatal{position:fixed;inset:0;z-index:9999;display:none;place-items:center;background:#fff;}
+#fatal div{max-width:420px;text-align:center;padding:30px;border:1px solid var(--black);}
+#fatal h3{font-size:20px;margin:0 0 10px;font-weight:700;}
+#fatal p{color:var(--muted);font-size:13px;line-height:1.6;}
+
+#panel{position:fixed;top:0;left:0;height:100%;width:384px;max-width:92vw;z-index:500;
+  background:var(--bg);border-right:1px solid var(--black);display:flex;flex-direction:column;transition:transform .3s ease;}
+#panel.collapsed{transform:translateX(-100%);}
+#panel .head{padding:20px 22px 16px;border-bottom:2px solid var(--black);}
+#panel .head h1{font-size:24px;margin:0;line-height:1;font-weight:700;letter-spacing:-.3px;}
+#panel .head h1 b{color:var(--red);}
+#panel .head .rule{height:3px;background:var(--red);width:44px;margin:11px 0;}
+#panel .head p{margin:0;font-size:13px;color:var(--muted);line-height:1.5;}
+.scroll{overflow-y:auto;flex:1;padding-bottom:92px;}
+.scroll::-webkit-scrollbar{width:9px;}
+.scroll::-webkit-scrollbar-thumb{background:#ddd;border-radius:9px;border:2px solid #fff;background-clip:content-box;}
+
+.sec{padding:18px 22px;border-bottom:1px solid var(--line);}
+.sec h2{display:flex;align-items:center;gap:10px;margin:0 0 13px;font-size:12px;letter-spacing:.5px;
+  text-transform:uppercase;color:var(--ink);font-weight:700;}
+.step{display:inline-grid;place-items:center;width:20px;height:20px;border:1.5px solid var(--red);
+  border-radius:50%;color:var(--red);font-size:11px;flex:none;font-weight:700;transition:.2s;}
+.sec.done .step{background:var(--red);color:#fff;}
+.sec .hint{font-size:11px;color:var(--faint);margin-left:auto;text-transform:none;font-weight:400;}
+
+.row{display:flex;gap:8px;}
+input[type=text],input[type=number],select,textarea{
+  width:100%;background:#fff;border:1px solid var(--line2);color:var(--ink);
+  font-family:var(--sans);font-size:13px;padding:9px 10px;border-radius:0;outline:none;transition:.12s;}
+input[type=number]{font-family:var(--mono);}
+input:focus,select:focus,textarea:focus{border-color:var(--red);box-shadow:0 0 0 1px var(--red);}
+input::placeholder{color:var(--faint);}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px;}
+.chip{font-size:12px;padding:5px 11px;border:1px solid var(--line2);color:var(--ink);background:#fff;cursor:pointer;transition:.12s;}
+.chip:hover{border-color:var(--red);color:var(--red);}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;cursor:pointer;border:1px solid var(--black);
+  background:#fff;color:var(--ink);font-family:var(--sans);font-size:12px;padding:9px 12px;border-radius:0;transition:.12s;width:100%;font-weight:600;}
+.btn:hover{background:var(--black);color:#fff;}
+.btn:disabled{opacity:.35;cursor:not-allowed;}
+.btn.ghost{border-color:var(--line2);font-weight:500;}
+.btn.ghost:hover{background:#f3f3f3;color:var(--ink);border-color:var(--black);}
+.btn.mini{width:auto;padding:7px 11px;font-size:12px;}
+
+#imgList{margin-top:13px;display:flex;flex-direction:column;gap:7px;max-height:290px;overflow-y:auto;padding-right:2px;}
+#imgList::-webkit-scrollbar{width:7px}#imgList::-webkit-scrollbar-thumb{background:#ddd;border-radius:7px}
+.icard{display:flex;gap:11px;padding:8px;border:1px solid var(--line);cursor:pointer;transition:.12s;align-items:center;}
+.icard:hover{border-color:var(--ink);}
+.icard.sel{border-color:var(--red);background:var(--red-tint);box-shadow:inset 2px 0 0 var(--red);}
+.icard img{width:54px;height:54px;object-fit:cover;flex:none;background:#eee;border:1px solid var(--line);}
+.icard .meta{min-width:0;flex:1;}
+.icard .t{font-size:13px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;}
+.icard .d{font-size:11px;color:var(--muted);margin-top:3px;display:flex;gap:7px;flex-wrap:wrap;}
+.tag{font-size:10px;padding:1px 6px;border:1px solid var(--line2);color:var(--ink);}
+.tag.warn{border-color:var(--red);color:var(--red);}
+
+#imgCtl{display:none;margin-top:13px;padding-top:13px;border-top:1px solid var(--line);}
+
+#modelList{display:flex;flex-direction:column;gap:7px;}
+.mcard{display:flex;align-items:center;gap:11px;padding:10px 12px;border:1px solid var(--line);cursor:pointer;transition:.12s;}
+.mcard:hover{border-color:var(--ink);}
+.mcard.sel{border-color:var(--red);background:var(--red-tint);box-shadow:inset 2px 0 0 var(--red);}
+.mcard .nm{font-size:14px;flex:1;min-width:0;font-weight:600;}
+.mcard .nm small{display:block;color:var(--muted);font-size:11px;margin-top:2px;font-weight:400;}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--red);flex:none;}
+.task{font-size:10px;padding:2px 7px;border:1px solid var(--line2);color:var(--ink);white-space:nowrap;text-transform:uppercase;}
+
+.pgrid{display:flex;flex-direction:column;gap:14px;}
+.pp .lab{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;margin-bottom:6px;}
+.pp .lab .k{color:var(--ink);}
+.pp .lab .v{color:var(--red);font-weight:600;font-family:var(--mono);}
+.pp .ctl{display:flex;align-items:center;gap:10px;}
+.pp input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:2px;border-radius:0;
+  background:linear-gradient(90deg,var(--red) var(--fill,40%),#dcdcdc var(--fill,40%));outline:none;}
+.pp input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--red);border:2px solid #fff;box-shadow:0 0 0 1px var(--red);cursor:pointer;}
+.pp input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;background:var(--red);border:2px solid #fff;cursor:pointer;}
+.pp input[type=number]{width:80px;flex:none;text-align:right;padding:6px 8px;}
+.pp .desc{font-size:11px;color:var(--faint);margin-top:6px;line-height:1.45;}
+.toggle{display:inline-flex;gap:7px;align-items:center;cursor:pointer;font-size:12px;}
+.toggle input{display:none;}
+.toggle .sw{width:32px;height:16px;border:1px solid var(--line2);background:#fff;position:relative;transition:.15s;}
+.toggle .sw::after{content:"";position:absolute;top:2px;left:2px;width:10px;height:10px;background:var(--muted);transition:.15s;}
+.toggle input:checked + .sw{border-color:var(--red);}
+.toggle input:checked + .sw::after{left:18px;background:var(--red);}
+
+.bbox-read{font-size:12px;color:var(--muted);margin-top:9px;line-height:1.6;}
+.bbox-read b{color:var(--ink);font-weight:600;font-family:var(--mono);}
+.minirow{display:flex;gap:8px;margin-top:12px;align-items:center;}
+
+#runWrap{position:absolute;bottom:0;left:0;width:100%;padding:14px 22px;background:#fff;border-top:1px solid var(--black);}
+#runBtn{border-color:var(--red);background:var(--red);color:#fff;font-size:13px;padding:13px;font-weight:700;}
+#runBtn:not(:disabled):hover{background:var(--red-d);border-color:var(--red-d);color:#fff;}
+#runBtn:disabled{background:#fff;color:var(--faint);border-color:var(--line2);}
+#status{margin-top:10px;font-size:12px;line-height:1.5;min-height:15px;color:var(--muted);}
+#status .err{color:var(--red);font-weight:600;}
+#status .ok{color:var(--ink);font-weight:600;}
+#status .blink{color:var(--red);font-family:var(--mono);}
+
+#console{position:fixed;left:384px;right:0;bottom:0;z-index:450;background:#fff;border-top:2px solid var(--black);
+  transition:transform .28s,left .3s;max-height:48vh;display:flex;flex-direction:column;}
+#console.down{transform:translateY(calc(100% - 40px));}
+#panel.collapsed ~ #console{left:0;}
+.cbar{display:flex;align-items:center;gap:11px;padding:10px 16px;cursor:pointer;border-bottom:1px solid var(--line);}
+.cbar .ttl{font-size:12px;letter-spacing:.5px;text-transform:uppercase;color:var(--ink);font-weight:700;}
+.tabs{display:flex;gap:4px;}
+.ctab{font-size:12px;padding:4px 10px;color:var(--muted);cursor:pointer;border:1px solid transparent;}
+.ctab.on{color:var(--red);border-color:var(--red);}
+.cbar .sp{flex:1;}
+.chev{width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid var(--muted);transition:.28s;}
+#console.down .chev{transform:rotate(180deg);}
+.cbody{overflow:auto;flex:1;}
+pre{margin:0;padding:15px 18px;font-size:12.5px;line-height:1.65;color:var(--ink);white-space:pre;tab-size:2;font-family:var(--mono);}
+pre .k{color:var(--red);}
+pre .s{color:#444;}
+pre .n{color:var(--red-d);font-weight:600;}
+pre .c{color:var(--faint);}
+
+#burger{position:fixed;top:14px;left:14px;z-index:700;height:40px;padding:0 14px;border:1px solid var(--black);
+  background:#fff;color:var(--ink);display:none;align-items:center;cursor:pointer;font-size:13px;font-weight:600;font-family:var(--sans);}
+#fit{}
+
+.empty{font-size:12px;color:var(--faint);padding:8px 2px;line-height:1.6;}
+.empty b{color:var(--muted);font-weight:600;}
+.spin{display:inline-block;width:11px;height:11px;border:2px solid #ddd;border-top-color:var(--red);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-1px;}
+@keyframes sp{to{transform:rotate(360deg);}}
+
+@media(max-width:760px){
+  #panel{width:340px;} #console{left:0 !important;max-height:42vh;} #burger{display:flex;}
+}
+</style>
 </head>
-
 <body>
 
-    <div id="map"></div>
-    <div id="fatal">
-        <div>
-            <h3>Map library did not load</h3>
-            <p>Leaflet could not be fetched from the CDN. Check your network connection and reload. On GitHub Pages this
-                loads fine.</p>
-        </div>
+<div id="map"></div>
+<div id="fatal"><div><h3>Map library did not load</h3><p>Leaflet could not be fetched from the CDN. Check your network connection and reload. On GitHub Pages this loads fine.</p></div></div>
+
+<button id="burger" title="panel">Menu</button>
+<div id="topright" style="position:fixed;top:14px;right:14px;z-index:700;display:flex;gap:8px">
+  <button id="clearBtn" class="btn mini" style="display:none">Clear results</button>
+  <button id="fit" class="btn mini" style="display:none">Fit to results</button>
+</div>
+
+<aside id="panel">
+  <div class="head">
+    <h1>fAIr <b>field lab</b></h1>
+    <div class="rule"></div>
+    <p>Go to a place and it loads the imagery and a model automatically. A dashed box on the map marks where it runs, centered on your view and resizable. Hit Run. The exact request is shown below as curl.</p>
+  </div>
+
+  <div class="scroll">
+    <div class="sec" id="secLoc">
+      <h2><span class="step">1</span> location <span class="hint">jump anywhere</span></h2>
+      <div class="row">
+        <input id="geo" type="text" placeholder="search a place (e.g. Freetown)" autocomplete="off"/>
+        <button class="btn mini" id="geoBtn" style="width:auto">Go</button>
+      </div>
+      <div class="chips" id="placeChips"></div>
     </div>
 
-    <button id="burger" title="panel">Menu</button>
-    <button id="fit" class="btn mini" style="display:none">Fit to results</button>
-
-    <aside id="panel">
-        <div class="head">
-            <h1>fAIr <b>field lab</b></h1>
-            <div class="rule"></div>
-            <p>Pick imagery and a model, set the inference params, then run the predict endpoint on the map. The exact
-                request is shown below as curl.</p>
+    <div class="sec" id="secImg">
+      <h2><span class="step">2</span> imagery <span class="hint" id="imgHint">scan the view</span></h2>
+      <div class="row">
+        <select id="imgCol" style="flex:1">
+          <option value="openaerialmap">OpenAerialMap</option>
+          <option value="maxar-opendata">Maxar Open Data</option>
+          <option value="noaa-emergency-response">NOAA Emergency</option>
+        </select>
+        <button class="btn mini" id="scanBtn" style="width:auto">Scan</button>
+      </div>
+      <div id="imgList"><div class="empty">Jump to a place, then Scan to list imagery in view. Click a result, or click a footprint on the map, to load it.</div></div>
+      <div id="imgCtl">
+        <div class="pp">
+          <div class="lab"><span class="k">imagery opacity</span><span class="v" id="opV">100%</span></div>
+          <div class="ctl"><input type="range" id="opacity" min="0" max="100" step="5" value="100"></div>
         </div>
+        <button class="btn mini ghost" id="fitImg" style="margin-top:9px;width:100%">Fit to image</button>
+      </div>
+    </div>
 
-        <div class="scroll">
-            <div class="sec" id="secLoc">
-                <h2><span class="step">1</span> location <span class="hint">jump anywhere</span></h2>
-                <div class="row">
-                    <input id="geo" type="text" placeholder="search a place (e.g. Freetown)" autocomplete="off" />
-                    <button class="btn mini" id="geoBtn" style="width:auto">Go</button>
-                </div>
-                <div class="chips" id="placeChips"></div>
-            </div>
+    <div class="sec" id="secModel">
+      <h2><span class="step">3</span> model <span class="hint"><label class="toggle" style="font-size:11px"><input type="checkbox" id="showDep"><span class="sw"></span>include old</label></span></h2>
+      <div id="modelList"><div class="empty"><span class="spin"></span> loading models...</div></div>
+    </div>
 
-            <div class="sec" id="secImg">
-                <h2><span class="step">2</span> imagery <span class="hint" id="imgHint">scan the view</span></h2>
-                <div class="row">
-                    <select id="imgCol" style="flex:1">
-                        <option value="openaerialmap">OpenAerialMap</option>
-                        <option value="maxar-opendata">Maxar Open Data</option>
-                        <option value="noaa-emergency-response">NOAA Emergency</option>
-                    </select>
-                    <button class="btn mini" id="scanBtn" style="width:auto">Scan</button>
-                </div>
-                <div id="imgList">
-                    <div class="empty">Jump to a place, then Scan to list imagery in view. Click a result, or click a
-                        footprint on the map, to load it.</div>
-                </div>
-                <div id="imgCtl">
-                    <div class="pp">
-                        <div class="lab"><span class="k">imagery opacity</span><span class="v" id="opV">100%</span>
-                        </div>
-                        <div class="ctl"><input type="range" id="opacity" min="0" max="100" step="5" value="100"></div>
-                    </div>
-                    <button class="btn mini ghost" id="fitImg" style="margin-top:9px;width:100%">Fit to image</button>
-                </div>
-            </div>
-
-            <div class="sec" id="secModel">
-                <h2><span class="step">3</span> model <span class="hint"><label class="toggle"
-                            style="font-size:11px"><input type="checkbox" id="showDep"><span class="sw"></span>include
-                            old</label></span></h2>
-                <div id="modelList">
-                    <div class="empty"><span class="spin"></span> loading models...</div>
-                </div>
-            </div>
-
-            <div class="sec" id="secParams">
-                <h2><span class="step">4</span> inference <span class="hint" id="paramHint">defaults from STAC</span>
-                </h2>
-                <div class="pp" style="margin-bottom:15px">
-                    <div class="lab"><span class="k">zoom</span><span class="v" id="zoomV">19</span></div>
-                    <div class="ctl">
-                        <input type="range" id="zoom" min="14" max="22" step="1" value="19" />
-                        <input type="number" id="zoomN" min="14" max="22" step="1" value="19" />
-                    </div>
-                    <div class="desc">Tile zoom the model reads imagery at. 19 is about 30 cm per pixel.</div>
-                </div>
-                <div class="pgrid" id="pgrid">
-                    <div class="empty">Pick a model to load its tunable params.</div>
-                </div>
-                <div class="minirow">
-                    <button class="btn mini ghost" id="resetP">Reset defaults</button>
-                    <label class="toggle" style="margin-left:auto"><input type="checkbox" id="rawToggle"><span
-                            class="sw"></span>raw json</label>
-                </div>
-                <textarea id="rawParams" rows="6" style="display:none;margin-top:10px"></textarea>
-            </div>
-
-            <div class="sec" id="secArea">
-                <h2><span class="step">5</span> area of interest <span class="hint">draw on map</span></h2>
-                <div class="row">
-                    <button class="btn mini" id="drawBtn" style="flex:1">Draw box</button>
-                    <button class="btn mini ghost" id="boxCenter" style="flex:1">Box at center</button>
-                </div>
-                <div class="bbox-read" id="bboxRead">No area yet. Draw a small rectangle. The model runs over exactly
-                    this footprint.</div>
-            </div>
+    <div class="sec" id="secParams">
+      <h2><span class="step">4</span> inference <span class="hint" id="paramHint">defaults from STAC</span></h2>
+      <div class="pp" style="margin-bottom:15px">
+        <div class="lab"><span class="k">zoom</span><span class="v" id="zoomV">19</span></div>
+        <div class="ctl">
+          <input type="range" id="zoom" min="14" max="22" step="1" value="19"/>
+          <input type="number" id="zoomN" min="14" max="22" step="1" value="19"/>
         </div>
+        <div class="desc">Tile zoom the model reads imagery at. 19 is about 30 cm per pixel.</div>
+      </div>
+      <div class="pgrid" id="pgrid"><div class="empty">Pick a model to load its tunable params.</div></div>
+      <div class="minirow">
+        <button class="btn mini ghost" id="resetP">Reset defaults</button>
+        <label class="toggle" style="margin-left:auto"><input type="checkbox" id="rawToggle"><span class="sw"></span>raw json</label>
+      </div>
+      <textarea id="rawParams" rows="6" style="display:none;margin-top:10px"></textarea>
+    </div>
 
-        <div id="runWrap">
-            <button class="btn" id="runBtn" disabled>Run inference</button>
-            <div id="status">Waiting for model, imagery and an area.</div>
-        </div>
-    </aside>
+    <div class="sec" id="secArea">
+      <h2><span class="step">5</span> run area <span class="hint">centered on view</span></h2>
+      <div class="pp">
+        <div class="lab"><span class="k">box size</span><span class="v" id="runSizeV">300 m</span></div>
+        <div class="ctl"><input type="range" id="runSize" min="100" max="1500" step="50" value="300"></div>
+      </div>
+      <div class="bbox-read" id="bboxRead">The dashed box on the map is the run area.</div>
+      <div class="row" style="margin-top:11px">
+        <button class="btn mini ghost" id="drawBtn" style="flex:1">Draw custom area</button>
+        <button class="btn mini ghost" id="resetArea" style="flex:1;display:none">Recenter box</button>
+      </div>
+    </div>
+  </div>
 
-    <section id="console" class="down">
-        <div class="cbar" id="cbar">
-            <span class="ttl">request</span>
-            <div class="tabs">
-                <span class="ctab on" data-tab="curl">curl</span>
-                <span class="ctab" data-tab="json">body</span>
-                <span class="ctab" data-tab="resp">response</span>
-            </div>
-            <span class="sp"></span>
-            <button class="btn mini" id="copyBtn" style="width:auto" onclick="event.stopPropagation()">Copy</button>
-            <button class="btn mini ghost" id="dlBtn" style="width:auto;display:none"
-                onclick="event.stopPropagation()">Download</button>
-            <span class="chev"></span>
-        </div>
-        <div class="cbody">
-            <pre id="curlOut"></pre>
-        </div>
-    </section>
+  <div id="runWrap">
+    <button class="btn" id="runBtn" disabled>Run inference</button>
+    <div id="status">Waiting for model, imagery and an area.</div>
+  </div>
+</aside>
 
-    <script>
-        function ensureLeaflet(cb) {
-            if (window.L) return cb();
-            var css = document.createElement('link');
-            css.rel = 'stylesheet'; css.href = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
-            document.head.appendChild(css);
-            var s = document.createElement('script');
-            s.src = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';
-            s.onload = function () { window.L ? cb() : fatal(); };
-            s.onerror = fatal;
-            document.head.appendChild(s);
-        }
-        function fatal() { document.getElementById('fatal').style.display = 'grid'; }
+<section id="console" class="down">
+  <div class="cbar" id="cbar">
+    <span class="ttl">request</span>
+    <div class="tabs">
+      <span class="ctab on" data-tab="curl">curl</span>
+      <span class="ctab" data-tab="json">body</span>
+      <span class="ctab" data-tab="resp">response</span>
+    </div>
+    <span class="sp"></span>
+    <button class="btn mini" id="copyBtn" style="width:auto" onclick="event.stopPropagation()">Copy</button>
+    <button class="btn mini ghost" id="dlBtn" style="width:auto;display:none" onclick="event.stopPropagation()">Download</button>
+    <span class="chev"></span>
+  </div>
+  <div class="cbody"><pre id="curlOut"></pre></div>
+</section>
 
-        function boot() {
-            const MODEL_STAC = "https://stac.fair.krschap.tech/stac";
-            const IMG_STAC = "https://api.imagery.hotosm.org/stac";
-            const RED = "#e01e26", GREY = "#9a9a9a", DARK = "#1a1a1a";
+<script>
+function ensureLeaflet(cb){
+  if (window.L) return cb();
+  var css=document.createElement('link');
+  css.rel='stylesheet'; css.href='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
+  document.head.appendChild(css);
+  var s=document.createElement('script');
+  s.src='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';
+  s.onload=function(){ window.L ? cb() : fatal(); };
+  s.onerror=fatal;
+  document.head.appendChild(s);
+}
+function fatal(){ document.getElementById('fatal').style.display='grid'; }
 
-            const PLACES = [
-                { n: "Freetown", c: [8.4847, -13.2343] }, { n: "Monrovia", c: [6.3007, -10.7969] },
-                { n: "Kathmandu", c: [27.7172, 85.3240] }, { n: "Dar es Salaam", c: [-6.7924, 39.2083] },
-                { n: "Maputo", c: [-25.9692, 32.5732] }, { n: "Cox's Bazar", c: [21.4272, 92.0058] },
-            ];
+function boot(){
+const MODEL_STAC="https://stac.fair.krschap.tech/stac";
+const IMG_STAC="https://api.imagery.hotosm.org/stac";
+const RED="#e01e26", GREY="#9a9a9a", DARK="#1a1a1a";
 
-            const S = {
-                model: null, models: [], imagery: null, imgLayer: null, footprints: L.layerGroup(),
-                params: {}, zoom: 19, bbox: null, drawRect: null, drawing: false, scenes: [], suppressClick: false, resultLayer: null, lastResponse: null, tab: "curl"
-            };
+const PLACES=[
+  {n:"Freetown",c:[8.4847,-13.2343]},{n:"Monrovia",c:[6.3007,-10.7969]},
+  {n:"Kathmandu",c:[27.7172,85.3240]},{n:"Dar es Salaam",c:[-6.7924,39.2083]},
+  {n:"Maputo",c:[-25.9692,32.5732]},{n:"Cox's Bazar",c:[21.4272,92.0058]},
+];
 
-            const map = L.map('map', { zoomControl: false, attributionControl: true }).setView(PLACES[0].c, 15);
-            L.control.zoom({ position: 'bottomright' }).addTo(map);
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-                maxZoom: 22, attribution: 'Map data OpenStreetMap, CARTO. Imagery OpenAerialMap / HOTOSM'
-            }).addTo(map);
-            S.footprints.addTo(map);
+const S={model:null,models:[],imagery:null,imgLayer:null,footprints:L.layerGroup(),
+  params:{},zoom:19,runSize:300,runRect:null,drawnBox:null,drawing:false,scenes:[],pinnedId:null,moveTimer:null,suppressClick:false,resultLayer:null,lastResponse:null,tab:"curl"};
 
-            const $ = s => document.querySelector(s);
-            const fmt = n => Math.round(n * 1e6) / 1e6;
+const map=L.map('map',{zoomControl:false,attributionControl:true}).setView(PLACES[0].c,15);
+L.control.zoom({position:'bottomright'}).addTo(map);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
+  maxZoom:22, attribution:'Map data OpenStreetMap, CARTO. Imagery OpenAerialMap / HOTOSM'
+}).addTo(map);
+S.footprints.addTo(map);
 
-            async function loadModels() {
-                const el = $("#modelList");
-                el.innerHTML = '<div class="empty"><span class="spin"></span> loading models...</div>';
-                let items = [], errs = [];
-                for (const c of ["base-models", "local-models"]) {
-                    try {
-                        const r = await fetch(`${MODEL_STAC}/collections/${c}/items?limit=100`, { headers: { Accept: "application/json" } });
-                        if (!r.ok) { errs.push(`${c} HTTP ${r.status}`); continue; }
-                        const d = await r.json(); (d.features || []).forEach(f => items.push(f));
-                    }
-                    catch (e) { errs.push(`${c}: ${e.message}`); }
-                }
-                S.models = items.map(parseModel).filter(m => m.endpoint);
-                S.models.sort((a, b) => (a.deprecated - b.deprecated) || a.name.localeCompare(b.name) || (b.version - a.version));
-                if (S.models.length) { renderModels(); return; }
-                el.innerHTML = `<div class="empty err" style="color:var(--red)">
-    Could not load models${errs.length ? ` (${errs[0]})` : ''}.<br><br>
+const $=s=>document.querySelector(s);
+const fmt=n=>Math.round(n*1e6)/1e6;
+
+async function loadModels(){
+  const el=$("#modelList");
+  el.innerHTML='<div class="empty"><span class="spin"></span> loading models...</div>';
+  let items=[], errs=[];
+  for(const c of ["base-models","local-models"]){
+    try{ const r=await fetch(`${MODEL_STAC}/collections/${c}/items?limit=100`,{headers:{Accept:"application/json"}});
+      if(!r.ok){ errs.push(`${c} HTTP ${r.status}`); continue; }
+      const d=await r.json(); (d.features||[]).forEach(f=>items.push(f)); }
+    catch(e){ errs.push(`${c}: ${e.message}`); }
+  }
+  S.models=items.map(parseModel).filter(m=>m.endpoint);
+  S.models.sort((a,b)=>(a.deprecated-b.deprecated)||a.name.localeCompare(b.name)||(b.version-a.version));
+  if(S.models.length){ renderModels(); if(!S.model){ const def=S.models.find(m=>!m.deprecated)||S.models[0]; if(def) selectModel(def); } return; }
+  el.innerHTML=`<div class="empty err" style="color:var(--red)">
+    Could not load models${errs.length?` (${errs[0]})`:''}.<br><br>
     The STAC is up and allows browser calls, so this is almost always the <b style="color:var(--ink)">run environment blocking cross origin requests</b>, which happens when you open the file directly or in a sandboxed preview. Serve it over http instead:<br>
     <b style="color:var(--ink)">python3 -m http.server</b>, then open localhost. GitHub Pages also works.
     <br><br><span id="retryModels" style="text-decoration:underline;cursor:pointer;color:var(--ink)">Retry</span></div>`;
-                const rt = document.getElementById('retryModels'); if (rt) rt.onclick = loadModels;
-            }
-            function parseModel(f) {
-                const p = f.properties || {}, a = f.assets || {}, hp = p["mlm:hyperparameters"] || {}, inf = {};
-                Object.keys(hp).forEach(k => { if (k.startsWith("inference.")) inf[k.slice(10)] = hp[k]; });
-                const specBy = {}; (p["fair:hyperparameters_spec"] || []).forEach(s => specBy[s.key] = s);
-                return {
-                    id: f.id, name: p["mlm:name"] || f.id, title: p.title || f.id, task: (p["mlm:tasks"] || [])[0] || "model",
-                    version: +(p.version || 1), deprecated: !!p.deprecated, model_uri: (a.model || {}).href || null,
-                    endpoint: ((a["mlm:inference-endpoint"] || {}).href) || null, defaults: inf, specs: specBy
-                };
-            }
-            function renderModels() {
-                const show = $("#showDep").checked, list = S.models.filter(m => show || !m.deprecated), el = $("#modelList");
-                if (!list.length) { el.innerHTML = '<div class="empty">No models with a live endpoint.</div>'; return; }
-                el.innerHTML = "";
-                list.forEach(m => {
-                    const c = document.createElement('div'); c.className = "mcard" + (S.model && S.model.id === m.id ? " sel" : "");
-                    c.innerHTML = `<span class="dot" style="background:${m.deprecated ? '#bbb' : 'var(--red)'}"></span>
-      <span class="nm">${m.name}${m.deprecated ? ' (old)' : ''}<small>v${m.version}, ${m.title}</small></span>
+  const rt=document.getElementById('retryModels'); if(rt) rt.onclick=loadModels;
+}
+function parseModel(f){
+  const p=f.properties||{},a=f.assets||{},hp=p["mlm:hyperparameters"]||{},inf={};
+  Object.keys(hp).forEach(k=>{ if(k.startsWith("inference.")) inf[k.slice(10)]=hp[k]; });
+  const specBy={}; (p["fair:hyperparameters_spec"]||[]).forEach(s=>specBy[s.key]=s);
+  return {id:f.id,name:p["mlm:name"]||f.id,title:p.title||f.id,task:(p["mlm:tasks"]||[])[0]||"model",
+    version:+(p.version||1),deprecated:!!p.deprecated,model_uri:(a.model||{}).href||null,
+    endpoint:((a["mlm:inference-endpoint"]||{}).href)||null,defaults:inf,specs:specBy};
+}
+function renderModels(){
+  const show=$("#showDep").checked, list=S.models.filter(m=>show||!m.deprecated), el=$("#modelList");
+  if(!list.length){ el.innerHTML='<div class="empty">No models with a live endpoint.</div>'; return; }
+  el.innerHTML="";
+  list.forEach(m=>{ const c=document.createElement('div'); c.className="mcard"+(S.model&&S.model.id===m.id?" sel":"");
+    c.innerHTML=`<span class="dot" style="background:${m.deprecated?'#bbb':'var(--red)'}"></span>
+      <span class="nm">${m.name}${m.deprecated?' (old)':''}<small>v${m.version}, ${m.title}</small></span>
       <span class="task">${m.task}</span>`;
-                    c.onclick = () => selectModel(m); el.appendChild(c);
-                });
-            }
-            function selectModel(m) {
-                S.model = m; S.params = { ...m.defaults }; renderModels(); renderParams();
-                $("#secModel").classList.add("done"); $("#paramHint").textContent = m.name + " defaults"; refresh();
-            }
+    c.onclick=()=>selectModel(m); el.appendChild(c); });
+}
+function selectModel(m){ S.model=m; S.params={...m.defaults}; renderModels(); renderParams();
+  $("#secModel").classList.add("done"); $("#paramHint").textContent=m.name+" defaults"; refresh(); }
 
-            function renderParams() {
-                const grid = $("#pgrid"), m = S.model;
-                if (!m) { grid.innerHTML = '<div class="empty">Pick a model to load its tunable params.</div>'; return; }
-                const keys = Object.keys(m.defaults);
-                grid.innerHTML = ""; if (!keys.length) { grid.innerHTML = '<div class="empty">This model takes no extra inference params.</div>'; }
-                keys.forEach(k => {
-                    const spec = m.specs[k] || {}, val = S.params[k], wrap = document.createElement('div'); wrap.className = "pp";
-                    if (spec.type === "bool") {
-                        wrap.innerHTML = `<div class="lab"><span class="k">${k}</span></div>
-        <label class="toggle"><input type="checkbox" ${val ? 'checked' : ''}><span class="sw"></span><small style="color:var(--muted)">${val}</small></label>
-        ${spec.description ? `<div class="desc">${spec.description}</div>` : ''}`;
-                        const cb = wrap.querySelector('input'); cb.onchange = () => { S.params[k] = cb.checked; wrap.querySelector('small').textContent = cb.checked; refresh(); };
-                    } else if (spec.values) {
-                        wrap.innerHTML = `<div class="lab"><span class="k">${k}</span></div>
-        <select>${spec.values.map(v => `<option ${v === val ? 'selected' : ''}>${v}</option>`).join('')}</select>
-        ${spec.description ? `<div class="desc">${spec.description}</div>` : ''}`;
-                        wrap.querySelector('select').onchange = e => { S.params[k] = e.target.value; refresh(); };
-                    } else {
-                        const isInt = spec.type === "int", min = spec.min !== undefined ? spec.min : 0,
-                            max = spec.max !== undefined ? spec.max : (isInt ? 32 : 1), step = isInt ? 1 : niceStep(min, max);
-                        wrap.innerHTML = `<div class="lab"><span class="k">${k}</span><span class="v" data-v>${val}</span></div>
+function renderParams(){
+  const grid=$("#pgrid"), m=S.model;
+  if(!m){ grid.innerHTML='<div class="empty">Pick a model to load its tunable params.</div>'; return; }
+  const keys=Object.keys(m.defaults);
+  grid.innerHTML=""; if(!keys.length){ grid.innerHTML='<div class="empty">This model takes no extra inference params.</div>'; }
+  keys.forEach(k=>{ const spec=m.specs[k]||{}, val=S.params[k], wrap=document.createElement('div'); wrap.className="pp";
+    if(spec.type==="bool"){
+      wrap.innerHTML=`<div class="lab"><span class="k">${k}</span></div>
+        <label class="toggle"><input type="checkbox" ${val?'checked':''}><span class="sw"></span><small style="color:var(--muted)">${val}</small></label>
+        ${spec.description?`<div class="desc">${spec.description}</div>`:''}`;
+      const cb=wrap.querySelector('input'); cb.onchange=()=>{S.params[k]=cb.checked;wrap.querySelector('small').textContent=cb.checked;refresh();};
+    } else if(spec.values){
+      wrap.innerHTML=`<div class="lab"><span class="k">${k}</span></div>
+        <select>${spec.values.map(v=>`<option ${v===val?'selected':''}>${v}</option>`).join('')}</select>
+        ${spec.description?`<div class="desc">${spec.description}</div>`:''}`;
+      wrap.querySelector('select').onchange=e=>{S.params[k]=e.target.value;refresh();};
+    } else {
+      const isInt=spec.type==="int", min=spec.min!==undefined?spec.min:0,
+        max=spec.max!==undefined?spec.max:(isInt?32:1), step=isInt?1:niceStep(min,max);
+      wrap.innerHTML=`<div class="lab"><span class="k">${k}</span><span class="v" data-v>${val}</span></div>
         <div class="ctl"><input type="range" min="${min}" max="${max}" step="${step}" value="${val}">
         <input type="number" min="${min}" max="${max}" step="${step}" value="${val}"></div>
-        ${spec.description ? `<div class="desc">${spec.description}</div>` : ''}`;
-                        const rng = wrap.querySelector('input[type=range]'), num = wrap.querySelector('input[type=number]'), lab = wrap.querySelector('[data-v]');
-                        const fill = () => rng.style.setProperty('--fill', ((rng.value - min) / (max - min) * 100) + '%');
-                        const apply = v => {
-                            v = isInt ? Math.round(+v) : +v; if (isNaN(v)) return; v = Math.min(max, Math.max(min, v));
-                            S.params[k] = v; rng.value = v; num.value = v; lab.textContent = v; fill(); refresh();
-                        };
-                        rng.oninput = () => apply(rng.value); num.oninput = () => apply(num.value); fill();
-                    }
-                    grid.appendChild(wrap);
-                });
-                syncRaw();
-            }
-            function niceStep(min, max) { const r = max - min; if (r <= 1) return 0.01; if (r <= 10) return 0.1; if (r <= 100) return 1; return Math.pow(10, Math.floor(Math.log10(r)) - 2); }
-            function syncRaw() { if ($("#rawToggle").checked) $("#rawParams").value = JSON.stringify(S.params, null, 2); }
-            $("#rawToggle").onchange = e => { const ta = $("#rawParams"); ta.style.display = e.target.checked ? 'block' : 'none'; if (e.target.checked) ta.value = JSON.stringify(S.params, null, 2); };
-            $("#rawParams").oninput = e => { try { S.params = JSON.parse(e.target.value); refresh(); } catch (_) { } }
-            $("#resetP").onclick = () => { if (S.model) { S.params = { ...S.model.defaults }; renderParams(); refresh(); } };
-            $("#showDep").onchange = renderModels;
-            function setZoom(v) { v = Math.min(22, Math.max(14, +v || 19)); S.zoom = v; $("#zoom").value = v; $("#zoomN").value = v; $("#zoomV").textContent = v; refresh(); }
-            $("#zoom").oninput = e => setZoom(e.target.value); $("#zoomN").oninput = e => setZoom(e.target.value);
+        ${spec.description?`<div class="desc">${spec.description}</div>`:''}`;
+      const rng=wrap.querySelector('input[type=range]'),num=wrap.querySelector('input[type=number]'),lab=wrap.querySelector('[data-v]');
+      const fill=()=>rng.style.setProperty('--fill',((rng.value-min)/(max-min)*100)+'%');
+      const apply=v=>{v=isInt?Math.round(+v):+v;if(isNaN(v))return;v=Math.min(max,Math.max(min,v));
+        S.params[k]=v;rng.value=v;num.value=v;lab.textContent=v;fill();refresh();};
+      rng.oninput=()=>apply(rng.value); num.oninput=()=>apply(num.value); fill();
+    }
+    grid.appendChild(wrap);
+  });
+  syncRaw();
+}
+function niceStep(min,max){const r=max-min;if(r<=1)return 0.01;if(r<=10)return 0.1;if(r<=100)return 1;return Math.pow(10,Math.floor(Math.log10(r))-2);}
+function syncRaw(){ if($("#rawToggle").checked) $("#rawParams").value=JSON.stringify(S.params,null,2); }
+$("#rawToggle").onchange=e=>{const ta=$("#rawParams");ta.style.display=e.target.checked?'block':'none';if(e.target.checked)ta.value=JSON.stringify(S.params,null,2);};
+$("#rawParams").oninput=e=>{try{S.params=JSON.parse(e.target.value);refresh();}catch(_){}}
+$("#resetP").onclick=()=>{if(S.model){S.params={...S.model.defaults};renderParams();refresh();}};
+$("#showDep").onchange=renderModels;
+function setZoom(v){v=Math.min(22,Math.max(14,+v||19));S.zoom=v;$("#zoom").value=v;$("#zoomN").value=v;$("#zoomV").textContent=v;refresh();}
+$("#zoom").oninput=e=>setZoom(e.target.value); $("#zoomN").oninput=e=>setZoom(e.target.value);
 
-            async function scanImagery() {
-                const col = $("#imgCol").value, b = map.getBounds(),
-                    bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].map(fmt), list = $("#imgList");
-                list.innerHTML = `<div class="empty"><span class="spin"></span> scanning ${col}, can take a few seconds...</div>`;
-                try {
-                    const r = await fetch(`${IMG_STAC}/search`, {
-                        method: "POST", headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ collections: [col], bbox, limit: 20 })
-                    });
-                    const d = await r.json(); let feats = d.features || [];
-                    feats.sort((a, b) => (b.properties.start_datetime || "").localeCompare(a.properties.start_datetime || ""));
-                    renderImagery(feats, col); $("#imgHint").textContent = `${d.numberMatched ?? feats.length} found`;
-                    if (feats.length) setStatus(`Found ${feats.length} scenes. Click one in the list, or click a footprint on the map.`);
-                } catch (e) { list.innerHTML = `<div class="empty err" style="color:var(--red)">Scan failed: ${e.message}. Zoom the map in and try again.</div>`; }
-            }
-            function deriveTemplate(href) {
-                const m = href && href.match(/\/([0-9a-f]{24})\/(\d+)\/([0-9a-f]{24})\.tif/i);
-                return m ? `https://tiles.openaerialmap.org/${m[1]}/${m[2]}/${m[3]}/{z}/{x}/{y}` : null;
-            }
-            function renderImagery(feats, col) {
-                const list = $("#imgList"); S.footprints.clearLayers(); S.scenes = [];
-                if (!feats.length) { list.innerHTML = '<div class="empty">Nothing here. Pan or zoom and scan again.</div>'; return; }
-                list.innerHTML = "";
-                feats.forEach(f => {
-                    const p = f.properties || {}, a = f.assets || {}, visual = (a.visual || a.image || {}).href || "",
-                        template = deriveTemplate(visual), image_uri = template || visual, thumb = (a.thumbnail || {}).href || "",
-                        gsd = p.gsd ? Math.round(p.gsd * 100) + " cm" : "", date = (p.start_datetime || p.datetime || "").slice(0, 10),
-                        src = p["oam:producer_name"] || (p.providers && p.providers[0] && p.providers[0].name) || col, title = p.title || f.id;
-                    const fp = L.geoJSON(f.geometry, { style: { color: GREY, weight: 1.2, opacity: .85, fill: true, fillOpacity: .05 } }).addTo(S.footprints);
-                    fp.bindTooltip(title, { sticky: true });
-                    const card = document.createElement('div'); card.className = "icard";
-                    card.innerHTML = `${thumb ? `<img src="${thumb}" loading="lazy" onerror="this.style.visibility='hidden'">` : `<div style="width:54px;height:54px;background:#eee;flex:none"></div>`}
+async function scanImagery(){
+  const col=$("#imgCol").value, b=map.getBounds(),
+    bbox=[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()].map(fmt), list=$("#imgList");
+  clearResults();
+  list.innerHTML=`<div class="empty"><span class="spin"></span> finding imagery here...</div>`;
+  try{
+    const r=await fetch(`${IMG_STAC}/search`,{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({collections:[col],bbox,limit:20})});
+    const d=await r.json(); let feats=d.features||[];
+    feats.sort((a,b)=>(b.properties.start_datetime||"").localeCompare(a.properties.start_datetime||""));
+    renderImagery(feats,col); $("#imgHint").textContent=`${d.numberMatched??feats.length} found`;
+    if(feats.length) autoPick();
+  }catch(e){ list.innerHTML=`<div class="empty err" style="color:var(--red)">Could not load imagery: ${e.message}. Zoom in and it retries as you move.</div>`; }
+}
+function deriveTemplate(href){ const m=href&&href.match(/\/([0-9a-f]{24})\/(\d+)\/([0-9a-f]{24})\.tif/i);
+  return m?`https://tiles.openaerialmap.org/${m[1]}/${m[2]}/${m[3]}/{z}/{x}/{y}`:null; }
+function renderImagery(feats,col){
+  const list=$("#imgList"); S.footprints.clearLayers(); S.scenes=[];
+  if(!feats.length){ list.innerHTML='<div class="empty">Nothing here. Pan or zoom and scan again.</div>'; return; }
+  list.innerHTML="";
+  feats.forEach(f=>{ const p=f.properties||{},a=f.assets||{}, visual=(a.visual||a.image||{}).href||"",
+    template=deriveTemplate(visual), image_uri=template||visual, thumb=(a.thumbnail||{}).href||"",
+    gsd=p.gsd?Math.round(p.gsd*100)+" cm":"", date=(p.start_datetime||p.datetime||"").slice(0,10),
+    src=p["oam:producer_name"]||(p.providers&&p.providers[0]&&p.providers[0].name)||col, title=p.title||f.id;
+    const fp=L.geoJSON(f.geometry,{style:{color:GREY,weight:1.2,opacity:.85,fill:true,fillOpacity:.05}}).addTo(S.footprints);
+    fp.bindTooltip(title,{sticky:true});
+    const card=document.createElement('div'); card.className="icard";
+    card.innerHTML=`${thumb?`<img src="${thumb}" loading="lazy" onerror="this.style.visibility='hidden'">`:`<div style="width:54px;height:54px;background:#eee;flex:none"></div>`}
       <div class="meta"><div class="t">${title}</div>
-      <div class="d">${date ? `<span>${date}</span>` : ''}${gsd ? `<span class="tag">${gsd}/px</span>` : ''}<span>${src}</span>${template ? '' : '<span class="tag warn">COG</span>'}</div></div>`;
-                    const o = { template, image_uri, title, col, card, fp, geom: f.geometry };
-                    S.scenes.push(o);
-                    const hi = () => fp.setStyle({ color: DARK, opacity: .95, weight: 2 });
-                    const lo = () => { if (!card.classList.contains('sel')) fp.setStyle({ color: GREY, opacity: .85, weight: 1.2 }); };
-                    card.onmouseenter = hi; card.onmouseleave = lo;
-                    fp.on('mouseover', hi); fp.on('mouseout', lo);
-                    card.onclick = () => selectImagery(o);
-                    list.appendChild(card);
-                });
-            }
-            function selectImagery(o) {
-                document.querySelectorAll('.icard').forEach(c => c.classList.remove('sel')); o.card.classList.add('sel');
-                o.card.scrollIntoView({ block: 'nearest' });
-                S.footprints.eachLayer(l => l.setStyle && l.setStyle({ color: GREY, opacity: .45, weight: 1 }));
-                o.fp.setStyle({ color: DARK, opacity: .95, weight: 2 });
-                if (S.imgLayer) map.removeLayer(S.imgLayer);
-                if (o.template) {
-                    S.imgLayer = L.tileLayer(o.template, { maxZoom: 22, maxNativeZoom: 22 }).addTo(map);
-                    const op = +$("#opacity").value / 100; S.imgLayer.setOpacity(op);
-                }
-                S.imagery = { image_uri: o.image_uri, template: o.template, title: o.title, col: o.col, geom: o.geom };
-                $("#secImg").classList.add("done");
-                $("#imgCtl").style.display = o.template ? "block" : "none";
-                const gj = L.geoJSON(o.geom); map.fitBounds(gj.getBounds(), { maxZoom: 18, padding: [40, 40] });
-                if (!S.bbox) boxAtCentroid(gj.getBounds().getCenter());
-                setStatus(`Loaded imagery: ${o.title}`); refresh();
-            }
-            $("#opacity").oninput = e => {
-                const v = +e.target.value; $("#opV").textContent = v + "%";
-                e.target.style.setProperty('--fill', v + '%'); if (S.imgLayer) S.imgLayer.setOpacity(v / 100);
-            };
-            $("#opacity").style.setProperty('--fill', '100%');
-            $("#fitImg").onclick = () => { if (S.imagery) { const gj = L.geoJSON(S.imagery.geom); map.fitBounds(gj.getBounds(), { padding: [40, 40] }); } };
+      <div class="d">${date?`<span>${date}</span>`:''}${gsd?`<span class="tag">${gsd}/px</span>`:''}<span>${src}</span>${template?'':'<span class="tag warn">COG</span>'}</div></div>`;
+    const o={id:f.id,template,image_uri,title,col,card,fp,geom:f.geometry};
+    S.scenes.push(o);
+    const hi=()=>fp.setStyle({color:DARK,opacity:.95,weight:2});
+    const lo=()=>{ if(!card.classList.contains('sel')) fp.setStyle({color:GREY,opacity:.85,weight:1.2}); };
+    card.onmouseenter=hi; card.onmouseleave=lo;
+    fp.on('mouseover',hi); fp.on('mouseout',lo);
+    card.onclick=()=>selectImagery(o);
+    list.appendChild(card);
+  });
+}
+function selectImagery(o,auto){
+  document.querySelectorAll('.icard').forEach(c=>c.classList.remove('sel')); if(o.card) o.card.classList.add('sel');
+  if(o.card && !auto) o.card.scrollIntoView({block:'nearest'});
+  S.footprints.eachLayer(l=>l.setStyle&&l.setStyle({color:GREY,opacity:.45,weight:1}));
+  if(o.fp) o.fp.setStyle({color:DARK,opacity:.95,weight:2});
+  if(S.imgLayer) map.removeLayer(S.imgLayer);
+  if(o.template){ S.imgLayer=L.tileLayer(o.template,{maxZoom:22,maxNativeZoom:22}).addTo(map);
+    S.imgLayer.setOpacity(+$("#opacity").value/100); }
+  S.imagery={image_uri:o.image_uri,template:o.template,title:o.title,col:o.col,geom:o.geom,id:o.id};
+  if(!auto) S.pinnedId=o.id||o.title;            // a manual pick stays pinned while it covers the view
+  $("#secImg").classList.add("done");
+  $("#imgCtl").style.display = o.template ? "block" : "none";
+  if(!auto){ const gj=L.geoJSON(o.geom); map.fitBounds(gj.getBounds(),{maxZoom:18,padding:[40,40]}); }
+  setStatus(auto?`Imagery: ${o.title}`:`Loaded imagery: ${o.title}`); readoutRunArea(); refresh();
+}
+// Pick the right scene for wherever the map is centred, without moving the map.
+function centerHits(){ const c=map.getCenter();
+  return S.scenes.filter(s=>geomHit(s.geom,c.lng,c.lat)).sort((a,b)=>geomArea(a.geom)-geomArea(b.geom)); }
+function autoPick(){
+  const hits=centerHits();
+  const pinned=hits.find(s=>(s.id||s.title)===S.pinnedId);
+  const choose = pinned || hits[0] || S.scenes[0];
+  if(choose) selectImagery(choose,true);
+}
+$("#opacity").oninput=e=>{ const v=+e.target.value; $("#opV").textContent=v+"%";
+  e.target.style.setProperty('--fill',v+'%'); if(S.imgLayer) S.imgLayer.setOpacity(v/100); };
+$("#opacity").style.setProperty('--fill','100%');
+$("#runSize").style.setProperty('--fill',((300-100)/1400*100)+'%');
+$("#fitImg").onclick=()=>{ if(S.imagery){ const gj=L.geoJSON(S.imagery.geom); map.fitBounds(gj.getBounds(),{padding:[40,40]}); } };
 
-            function setBBox(bounds) {
-                S.bbox = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()].map(fmt);
-                if (S.drawRect) map.removeLayer(S.drawRect);
-                S.drawRect = L.rectangle(bounds, { color: DARK, weight: 2, fill: false, dashArray: "6 4", className: "aoi", interactive: false }).addTo(map);
-                $("#secArea").classList.add("done"); readoutBBox(); refresh();
-            }
-            function readoutBBox() {
-                if (!S.bbox) { $("#bboxRead").textContent = "No area yet. Draw a small rectangle."; return; }
-                const [w, s, e, n] = S.bbox, lat = (s + n) / 2, mLat = 111320, mLon = 111320 * Math.cos(lat * Math.PI / 180),
-                    W = Math.abs(e - w) * mLon, H = Math.abs(n - s) * mLat;
-                $("#bboxRead").innerHTML = `<b>[${w.toFixed(5)}, ${s.toFixed(5)}, ${e.toFixed(5)}, ${n.toFixed(5)}]</b><br>${Math.round(W)} x ${Math.round(H)} m, ${(W * H / 1e6).toFixed(3)} km2`;
-            }
-            function boxAtCentroid(center, meters = 140) {
-                const lat = center.lat, d = meters / 2, dLat = d / 111320, dLon = d / (111320 * Math.cos(lat * Math.PI / 180));
-                setBBox(L.latLngBounds([lat - dLat, center.lng - dLon], [lat + dLat, center.lng + dLon]));
-            }
-            $("#boxCenter").onclick = () => boxAtCentroid(map.getCenter());
-            let dStart = null;
-            $("#drawBtn").onclick = () => {
-                S.drawing = !S.drawing;
-                $("#drawBtn").textContent = S.drawing ? "Cancel" : "Draw box";
-                $("#drawBtn").style.borderColor = S.drawing ? RED : ""; $("#drawBtn").style.color = S.drawing ? RED : "";
-                map.getContainer().style.cursor = S.drawing ? "crosshair" : "";
-                S.drawing ? map.dragging.disable() : map.dragging.enable();
-            };
-            map.on('mousedown', e => {
-                if (!S.drawing) return; dStart = e.latlng;
-                if (S.drawRect) map.removeLayer(S.drawRect);
-                S.drawRect = L.rectangle(L.latLngBounds(dStart, dStart), { color: DARK, weight: 2, fill: false, dashArray: "6 4", className: "aoi", interactive: false }).addTo(map);
-            });
-            map.on('mousemove', e => { if (S.drawing && dStart && S.drawRect) S.drawRect.setBounds(L.latLngBounds(dStart, e.latlng)); });
-            map.on('mouseup', e => {
-                if (!S.drawing || !dStart) return; setBBox(L.latLngBounds(dStart, e.latlng)); dStart = null;
-                S.drawing = false; $("#drawBtn").textContent = "Draw box"; $("#drawBtn").style.borderColor = ""; $("#drawBtn").style.color = "";
-                map.getContainer().style.cursor = ""; map.dragging.enable(); S.suppressClick = true; setTimeout(() => S.suppressClick = false, 250);
-            });
+// The run area is a visible box you can see on the map: a sized square centered on
+// your view (follows as you pan), or a custom box you draw. This is what gets run.
+function runBounds(){
+  if(S.drawnBox) return S.drawnBox;
+  const c=map.getCenter(), d=S.runSize/2;
+  const dLat=d/111320, dLon=d/(111320*Math.cos(c.lat*Math.PI/180));
+  return L.latLngBounds([c.lat-dLat,c.lng-dLon],[c.lat+dLat,c.lng+dLon]);
+}
+function effectiveBbox(){ const b=runBounds();
+  return [b.getWest(),b.getSouth(),b.getEast(),b.getNorth()].map(fmt); }
+function drawRunBox(){
+  if(S.runRect) map.removeLayer(S.runRect);
+  S.runRect=L.rectangle(runBounds(),{color:DARK,weight:2,fill:false,dashArray:"6 4",className:"aoi",interactive:false}).addTo(map);
+}
+function readoutRunArea(){
+  const [w,s,e,n]=effectiveBbox(), lat=(s+n)/2, mLon=111320*Math.cos(lat*Math.PI/180),
+    W=Math.abs(e-w)*mLon, H=Math.abs(n-s)*111320;
+  $("#bboxRead").innerHTML=`The dashed box on the map is the run area: <b>${Math.round(W)} x ${Math.round(H)} m</b> (${(W*H/1e6).toFixed(3)} km2)${S.drawnBox?", custom":", centered on view"}.`;
+}
+$("#runSize").oninput=e=>{ S.runSize=+e.target.value; $("#runSizeV").textContent=S.runSize+" m";
+  e.target.style.setProperty('--fill',((S.runSize-100)/(1500-100)*100)+'%');
+  if(!S.drawnBox){ drawRunBox(); readoutRunArea(); refresh(); } };
+function setDrawnBox(bounds){ S.drawnBox=bounds; drawRunBox();
+  $("#resetArea").style.display="block"; readoutRunArea(); refresh();
+}
+$("#resetArea").onclick=()=>{ S.drawnBox=null; drawRunBox();
+  $("#resetArea").style.display="none"; readoutRunArea(); refresh(); };
+let dStart=null, dRect=null;
+$("#drawBtn").onclick=()=>{ S.drawing=!S.drawing;
+  $("#drawBtn").textContent=S.drawing?"Cancel":"Draw custom area";
+  $("#drawBtn").style.borderColor=S.drawing?RED:""; $("#drawBtn").style.color=S.drawing?RED:"";
+  map.getContainer().style.cursor=S.drawing?"crosshair":"";
+  S.drawing?map.dragging.disable():map.dragging.enable(); };
+map.on('mousedown',e=>{ if(!S.drawing)return; dStart=e.latlng;
+  if(dRect) map.removeLayer(dRect);
+  dRect=L.rectangle(L.latLngBounds(dStart,dStart),{color:RED,weight:2,fill:false,dashArray:"6 4",interactive:false}).addTo(map); });
+map.on('mousemove',e=>{ if(S.drawing&&dStart&&dRect) dRect.setBounds(L.latLngBounds(dStart,e.latlng)); });
+map.on('mouseup',e=>{ if(!S.drawing||!dStart)return; if(dRect){map.removeLayer(dRect);dRect=null;}
+  setDrawnBox(L.latLngBounds(dStart,e.latlng)); dStart=null;
+  S.drawing=false; $("#drawBtn").textContent="Draw custom area"; $("#drawBtn").style.borderColor=""; $("#drawBtn").style.color="";
+  map.getContainer().style.cursor=""; map.dragging.enable(); S.suppressClick=true; setTimeout(()=>S.suppressClick=false,250); });
 
-            // Reliable "click the footprint on the map": geometric point-in-polygon hit test,
-            // independent of Leaflet vector event quirks. Picks the smallest scene under the click.
-            function ptInRing(lng, lat, ring) {
-                let inside = false;
-                for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-                    const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
-                    if (((yi > lat) !== (yj > lat)) && (lng < (xj - xi) * (lat - yi) / ((yj - yi) || 1e-12) + xi)) inside = !inside;
-                }
-                return inside;
-            }
-            function geomHit(g, lng, lat) {
-                if (!g) return false;
-                if (g.type === "Polygon") return ptInRing(lng, lat, g.coordinates[0]);
-                if (g.type === "MultiPolygon") return g.coordinates.some(p => ptInRing(lng, lat, p[0])); return false;
-            }
-            function geomArea(g) {
-                let xs = [], ys = []; const walk = c => { if (typeof c[0] === "number") { xs.push(c[0]); ys.push(c[1]); } else c.forEach(walk); };
-                walk(g.coordinates); return (Math.max.apply(null, xs) - Math.min.apply(null, xs)) * (Math.max.apply(null, ys) - Math.min.apply(null, ys));
-            }
-            map.on('click', e => {
-                if (S.drawing || S.suppressClick) return;
-                const lng = e.latlng.lng, lat = e.latlng.lat;
-                const hits = S.scenes.filter(s => geomHit(s.geom, lng, lat));
-                if (!hits.length) return;
-                hits.sort((a, b) => geomArea(a.geom) - geomArea(b.geom));
-                selectImagery(hits[0]);
-            });
+// Reliable "click the footprint on the map": geometric point-in-polygon hit test,
+// independent of Leaflet vector event quirks. Picks the smallest scene under the click.
+function ptInRing(lng,lat,ring){ let inside=false;
+  for(let i=0,j=ring.length-1;i<ring.length;j=i++){ const xi=ring[i][0],yi=ring[i][1],xj=ring[j][0],yj=ring[j][1];
+    if(((yi>lat)!==(yj>lat)) && (lng < (xj-xi)*(lat-yi)/((yj-yi)||1e-12)+xi)) inside=!inside; }
+  return inside; }
+function geomHit(g,lng,lat){ if(!g)return false;
+  if(g.type==="Polygon") return ptInRing(lng,lat,g.coordinates[0]);
+  if(g.type==="MultiPolygon") return g.coordinates.some(p=>ptInRing(lng,lat,p[0])); return false; }
+function geomArea(g){ let xs=[],ys=[]; const walk=c=>{ if(typeof c[0]==="number"){xs.push(c[0]);ys.push(c[1]);} else c.forEach(walk); };
+  walk(g.coordinates); return (Math.max.apply(null,xs)-Math.min.apply(null,xs))*(Math.max.apply(null,ys)-Math.min.apply(null,ys)); }
+map.on('click',e=>{ if(S.drawing||S.suppressClick) return;
+  const lng=e.latlng.lng, lat=e.latlng.lat;
+  const hits=S.scenes.filter(s=>geomHit(s.geom,lng,lat));
+  if(!hits.length) return;
+  hits.sort((a,b)=>geomArea(a.geom)-geomArea(b.geom));
+  selectImagery(hits[0]); });
 
-            function buildBody() {
-                if (!S.model || !S.imagery || !S.bbox) return null;
-                return { model_uri: S.model.model_uri, image_uri: S.imagery.image_uri, bbox: S.bbox, zoom: S.zoom, params: S.params };
-            }
-            function buildCurl(body, ep) { return `curl -sSL -X POST \\\n  -H "Content-Type: application/json" \\\n  ${ep} \\\n  -d '${JSON.stringify(body, null, 2)}' \\\n  -o predictions.geojson`; }
-            function colorJSON(str) {
-                return str.replace(/&/g, "&amp;").replace(/</g, "&lt;")
-                    .replace(/^(\/\/.*)$/gm, '<span class="c">$1</span>')
-                    .replace(/"([^"]+)":/g, '<span class="k">"$1"</span>:')
-                    .replace(/: ("(?:[^"\\]|\\.)*")/g, ': <span class="s">$1</span>')
-                    .replace(/: (-?\d+\.?\d*)/g, ': <span class="n">$1</span>');
-            }
-            function refresh() {
-                const body = buildBody(); $("#runBtn").disabled = !body;
-                if (body && $("#status").dataset.state !== "busy" && $("#status").dataset.state !== "done")
-                    setStatus(`Ready: ${S.model.name} on ${S.imagery.title.slice(0, 22)}`);
-                if (S.tab === "curl") $("#curlOut").innerHTML = body ? colorJSON(buildCurl(body, S.model.endpoint)) : '<span class="c">// select a model, imagery and an area to build the request</span>';
-                else if (S.tab === "json") $("#curlOut").innerHTML = body ? colorJSON(JSON.stringify(body, null, 2)) : '<span class="c">// no request yet</span>';
-                else $("#curlOut").innerHTML = S.lastResponse ? colorJSON(typeof S.lastResponse === "string" ? S.lastResponse : JSON.stringify(S.lastResponse, null, 2)) : '<span class="c">// no response yet</span>';
-                syncRaw(); readoutBBox();
-            }
-            function setStatus(html, state) { const s = $("#status"); s.innerHTML = html; s.dataset.state = state || ""; }
-            let timer = null;
-            $("#runBtn").onclick = async () => {
-                const body = buildBody(); if (!body) return; const ep = S.model.endpoint;
-                $("#console").classList.remove("down"); const t0 = performance.now();
-                timer = setInterval(() => setStatus(`<span class="spin"></span> running <span class="blink">${((performance.now() - t0) / 1000).toFixed(1)}s</span>`, "busy"), 100);
-                if (S.resultLayer) map.removeLayer(S.resultLayer);
-                try {
-                    const r = await fetch(ep, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-                    clearInterval(timer); const dt = ((performance.now() - t0) / 1000).toFixed(1); const txt = await r.text();
-                    if (!r.ok) {
-                        S.lastResponse = txt || `HTTP ${r.status} ${r.statusText}`; S.tab = "resp"; setTab();
-                        setStatus(`<span class="err">Error HTTP ${r.status}</span>, ${dt}s. Endpoint may be cold or not deployed. The curl below is ready to copy and retry.`, "done"); return;
-                    }
-                    let gj; try { gj = JSON.parse(txt); } catch (_) { gj = null; } S.lastResponse = gj || txt;
-                    if (gj && (gj.type === "FeatureCollection" || gj.features)) {
-                        const n = (gj.features || []).length;
-                        S.resultLayer = L.geoJSON(gj, {
-                            interactive: false, style: { color: RED, weight: 2, fillColor: RED, fillOpacity: .35, className: "pred" },
-                            pointToLayer: (f, ll) => L.circleMarker(ll, { radius: 5, color: RED, weight: 2, fillColor: RED, fillOpacity: .5, interactive: false, className: "pred" })
-                        }).addTo(map);
-                        if (n) map.fitBounds(S.resultLayer.getBounds(), { padding: [60, 60], maxZoom: 20 });
-                        setStatus(`<span class="ok">OK: ${n} feature${n !== 1 ? 's' : ''}</span>, ${dt}s`, "done");
-                        $("#dlBtn").style.display = "inline-flex"; $("#fit").style.display = "inline-flex";
-                    } else setStatus(`<span class="ok">Done</span>, ${dt}s. Response is not GeoJSON, see the console.`, "done");
-                    S.tab = "resp"; setTab();
-                } catch (e) {
-                    clearInterval(timer); S.lastResponse = String(e); S.tab = "resp"; setTab();
-                    setStatus(`<span class="err">Error: ${e.message}</span>. Network or CORS blocked, or the endpoint is down. The curl is still copyable.`, "done");
-                }
-            };
-            $("#dlBtn").onclick = () => {
-                if (!S.lastResponse) return;
-                const blob = new Blob([typeof S.lastResponse === "string" ? S.lastResponse : JSON.stringify(S.lastResponse, null, 2)], { type: "application/geo+json" });
-                const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = "predictions.geojson"; a.click();
-            };
-            $("#fit").onclick = () => { if (S.resultLayer) map.fitBounds(S.resultLayer.getBounds(), { padding: [60, 60] }); };
+// As you pan/zoom, keep the right imagery loaded for where you are.
+// Cheap: reuse already-loaded scenes; only hit the network when you leave coverage.
+map.on('moveend',()=>{ if(S.drawing) return; clearTimeout(S.moveTimer); S.moveTimer=setTimeout(()=>{
+  if(!S.drawnBox) drawRunBox();
+  readoutRunArea();
+  const c=map.getCenter();
+  if(S.imagery && geomHit(S.imagery.geom,c.lng,c.lat)) return;   // current imagery still covers view
+  if(centerHits().length){ autoPick(); return; }                // covered by a loaded scene, no fetch
+  scanImagery();                                                 // out of coverage: fetch + auto-pick
+}, 700); });
 
-            function setTab() {
-                document.querySelectorAll('.ctab').forEach(t => t.classList.toggle('on', t.dataset.tab === S.tab));
-                $("#console .ttl").textContent = S.tab === "resp" ? "response" : "request"; refresh();
-            }
-            document.querySelectorAll('.ctab').forEach(t => t.onclick = ev => { ev.stopPropagation(); S.tab = t.dataset.tab; setTab(); $("#console").classList.remove("down"); });
-            $("#cbar").onclick = () => $("#console").classList.toggle("down");
-            $("#copyBtn").onclick = () => {
-                const txt = $("#curlOut").innerText;
-                navigator.clipboard.writeText(txt).then(() => { const b = $("#copyBtn"); b.textContent = "Copied"; setTimeout(() => b.textContent = "Copy", 1200); });
-            };
+function clearResults(){ if(S.resultLayer){ map.removeLayer(S.resultLayer); S.resultLayer=null; }
+  if(!map.hasLayer(S.footprints)) map.addLayer(S.footprints);
+  $("#dlBtn").style.display="none"; $("#fit").style.display="none"; $("#clearBtn").style.display="none"; }
+function buildBody(){ if(!S.model||!S.imagery) return null;
+  return {model_uri:S.model.model_uri,image_uri:S.imagery.image_uri,bbox:effectiveBbox(),zoom:S.zoom,params:S.params}; }
+function buildCurl(body,ep){ return `curl -sSL -X POST \\\n  -H "Content-Type: application/json" \\\n  ${ep} \\\n  -d '${JSON.stringify(body,null,2)}' \\\n  -o predictions.geojson`; }
+function colorJSON(str){ return str.replace(/&/g,"&amp;").replace(/</g,"&lt;")
+  .replace(/^(\/\/.*)$/gm,'<span class="c">$1</span>')
+  .replace(/"([^"]+)":/g,'<span class="k">"$1"</span>:')
+  .replace(/: ("(?:[^"\\]|\\.)*")/g,': <span class="s">$1</span>')
+  .replace(/: (-?\d+\.?\d*)/g,': <span class="n">$1</span>'); }
+function refresh(){
+  const body=buildBody(); $("#runBtn").disabled=!body;
+  if(body && $("#status").dataset.state!=="busy" && $("#status").dataset.state!=="done")
+    setStatus(`Ready: ${S.model.name} on ${S.imagery.title.slice(0,22)}`);
+  if(S.tab==="curl") $("#curlOut").innerHTML=body?colorJSON(buildCurl(body,S.model.endpoint)):'<span class="c">// select a model, imagery and an area to build the request</span>';
+  else if(S.tab==="json") $("#curlOut").innerHTML=body?colorJSON(JSON.stringify(body,null,2)):'<span class="c">// no request yet</span>';
+  else $("#curlOut").innerHTML=S.lastResponse?colorJSON(typeof S.lastResponse==="string"?S.lastResponse:JSON.stringify(S.lastResponse,null,2)):'<span class="c">// no response yet</span>';
+  syncRaw(); readoutRunArea();
+}
+function setStatus(html,state){ const s=$("#status"); s.innerHTML=html; s.dataset.state=state||""; }
+let timer=null;
+$("#runBtn").onclick=async()=>{
+  const body=buildBody(); if(!body)return; const ep=S.model.endpoint;
+  $("#console").classList.remove("down"); const t0=performance.now();
+  timer=setInterval(()=>setStatus(`<span class="spin"></span> running <span class="blink">${((performance.now()-t0)/1000).toFixed(1)}s</span>`,"busy"),100);
+  if(S.resultLayer) map.removeLayer(S.resultLayer);
+  try{
+    const r=await fetch(ep,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    clearInterval(timer); const dt=((performance.now()-t0)/1000).toFixed(1); const txt=await r.text();
+    if(!r.ok){ S.lastResponse=txt||`HTTP ${r.status} ${r.statusText}`; S.tab="resp"; setTab();
+      setStatus(`<span class="err">Error HTTP ${r.status}</span>, ${dt}s. Endpoint may be cold or not deployed. The curl below is ready to copy and retry.`,"done"); return; }
+    let gj; try{ gj=JSON.parse(txt); }catch(_){ gj=null; } S.lastResponse=gj||txt;
+    if(gj&&(gj.type==="FeatureCollection"||gj.features)){
+      const n=(gj.features||[]).length;
+      S.resultLayer=L.geoJSON(gj,{interactive:false,style:{color:RED,weight:2,fillColor:RED,fillOpacity:.35,className:"pred"},
+        pointToLayer:(f,ll)=>L.circleMarker(ll,{radius:5,color:RED,weight:2,fillColor:RED,fillOpacity:.5,interactive:false,className:"pred"})}).addTo(map);
+      if(n) map.fitBounds(S.resultLayer.getBounds(),{padding:[60,60],maxZoom:20});
+      map.removeLayer(S.footprints);
+      setStatus(`<span class="ok">OK: ${n} feature${n!==1?'s':''}</span>, ${dt}s`,"done");
+      $("#dlBtn").style.display="inline-flex"; $("#fit").style.display="inline-flex"; $("#clearBtn").style.display="inline-flex";
+    } else setStatus(`<span class="ok">Done</span>, ${dt}s. Response is not GeoJSON, see the console.`,"done");
+    S.tab="resp"; setTab();
+  }catch(e){ clearInterval(timer); S.lastResponse=String(e); S.tab="resp"; setTab();
+    setStatus(`<span class="err">Error: ${e.message}</span>. Network or CORS blocked, or the endpoint is down. The curl is still copyable.`,"done"); }
+};
+$("#dlBtn").onclick=()=>{ if(!S.lastResponse)return;
+  const blob=new Blob([typeof S.lastResponse==="string"?S.lastResponse:JSON.stringify(S.lastResponse,null,2)],{type:"application/geo+json"});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download="predictions.geojson"; a.click(); };
+$("#fit").onclick=()=>{ if(S.resultLayer) map.fitBounds(S.resultLayer.getBounds(),{padding:[60,60]}); };
+$("#clearBtn").onclick=()=>{ clearResults(); setStatus("Results cleared."); };
 
-            function renderChips() {
-                const el = $("#placeChips");
-                PLACES.forEach(p => {
-                    const c = document.createElement('span'); c.className = "chip"; c.textContent = p.n;
-                    c.onclick = () => { map.setView(p.c, 16); $("#secLoc").classList.add("done"); setTimeout(scanImagery, 350); }; el.appendChild(c);
-                });
-            }
-            async function geocode() {
-                const q = $("#geo").value.trim(); if (!q) return; $("#geoBtn").textContent = "...";
-                try {
-                    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`, { headers: { Accept: "application/json" } });
-                    const d = await r.json(); if (d[0]) { map.setView([+d[0].lat, +d[0].lon], 16); $("#secLoc").classList.add("done"); setTimeout(scanImagery, 350); }
-                    else setStatus(`<span class="err">No match for "${q}"</span>`);
-                }
-                catch (e) { setStatus('<span class="err">Geocode failed</span>'); } $("#geoBtn").textContent = "Go";
-            }
-            $("#geoBtn").onclick = geocode;
-            $("#geo").addEventListener('keydown', e => { if (e.key === "Enter") geocode(); });
-            $("#scanBtn").onclick = scanImagery; $("#imgCol").onchange = scanImagery;
-            $("#burger").onclick = () => $("#panel").classList.toggle("collapsed");
+function setTab(){ document.querySelectorAll('.ctab').forEach(t=>t.classList.toggle('on',t.dataset.tab===S.tab));
+  $("#console .ttl").textContent=S.tab==="resp"?"response":"request"; refresh(); }
+document.querySelectorAll('.ctab').forEach(t=>t.onclick=ev=>{ ev.stopPropagation(); S.tab=t.dataset.tab; setTab(); $("#console").classList.remove("down"); });
+$("#cbar").onclick=()=>$("#console").classList.toggle("down");
+$("#copyBtn").onclick=()=>{ const txt=$("#curlOut").innerText;
+  navigator.clipboard.writeText(txt).then(()=>{ const b=$("#copyBtn"); b.textContent="Copied"; setTimeout(()=>b.textContent="Copy",1200); }); };
 
-            renderChips(); loadModels(); refresh();
-        }
-        ensureLeaflet(boot);
-    </script>
+function renderChips(){ const el=$("#placeChips");
+  PLACES.forEach(p=>{ const c=document.createElement('span'); c.className="chip"; c.textContent=p.n;
+    c.onclick=()=>{ map.setView(p.c,16); $("#secLoc").classList.add("done"); }; el.appendChild(c); }); }
+async function geocode(){ const q=$("#geo").value.trim(); if(!q)return; $("#geoBtn").textContent="...";
+  try{ const r=await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`,{headers:{Accept:"application/json"}});
+    const d=await r.json(); if(d[0]){ map.setView([+d[0].lat,+d[0].lon],16); $("#secLoc").classList.add("done"); }
+    else setStatus(`<span class="err">No match for "${q}"</span>`); }
+  catch(e){ setStatus('<span class="err">Geocode failed</span>'); } $("#geoBtn").textContent="Go"; }
+$("#geoBtn").onclick=geocode;
+$("#geo").addEventListener('keydown',e=>{ if(e.key==="Enter") geocode(); });
+$("#scanBtn").onclick=scanImagery; $("#imgCol").onchange=scanImagery;
+$("#burger").onclick=()=>$("#panel").classList.toggle("collapsed");
+
+renderChips(); loadModels(); $("#secArea").classList.add("done"); drawRunBox(); readoutRunArea(); scanImagery(); refresh();
+}
+ensureLeaflet(boot);
+</script>
 </body>
-
 </html>
