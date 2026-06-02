@@ -323,9 +323,11 @@ const PLACES=[
 ];
 
 const S={model:null,models:[],imagery:null,imgLayer:null,footprints:L.layerGroup(),
-  params:{},zoom:19,tileSpan:4,drawnRect:null,drawnBox:null,drawing:false,scenes:[],pinnedId:null,moveTimer:null,suppressClick:false,shareLock:false,runRect:null,gridLayer:null,showGrid:true,predFill:0.35,meMarker:null,resultLayer:null,lastResponse:null,tab:"curl"};
+  params:{},zoom:19,tileSpan:4,drawnRect:null,drawnBox:null,drawing:false,scenes:[],pinnedId:null,moveTimer:null,suppressClick:false,shareLock:false,runRect:null,gridLayer:null,maskLayer:null,showGrid:true,predFill:0.35,meMarker:null,resultLayer:null,lastResponse:null,tab:"curl"};
 
 const map=L.map('map',{zoomControl:false,attributionControl:true}).setView(PLACES[0].c,15);
+map.createPane('dimPane'); map.getPane('dimPane').style.zIndex=350; map.getPane('dimPane').style.pointerEvents='none';
+const dimRenderer=L.svg({pane:'dimPane'});
 L.control.zoom({position:'bottomright'}).addTo(map);
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
   maxZoom:22, updateWhenZooming:false, updateWhenIdle:true, keepBuffer:2,
@@ -519,9 +521,16 @@ function snappedRun(){
 function effectiveBbox(){ const b=snappedRun().bounds, r=v=>Math.round(v*1e9)/1e9;
   return [r(b.getWest()),r(b.getSouth()),r(b.getEast()),r(b.getNorth())]; }
 function drawRunBox(){
-  const sr=snappedRun();
-  if(!S.runRect){ S.runRect=L.rectangle(sr.bounds,{color:RED,weight:2,fill:false,dashArray:"6 4",className:"aoi",interactive:false}).addTo(map); }
-  else S.runRect.setBounds(sr.bounds);
+  const sr=snappedRun(), b=sr.bounds;
+  if(!S.runRect){ S.runRect=L.rectangle(b,{color:RED,weight:2,fill:false,dashArray:"6 4",className:"aoi",interactive:false}).addTo(map); }
+  else S.runRect.setBounds(b);
+  drawMask(b);
+}
+function drawMask(b){
+  const world=[[-85,-180],[-85,180],[85,180],[85,-180]];
+  const hole=[[b.getSouth(),b.getWest()],[b.getSouth(),b.getEast()],[b.getNorth(),b.getEast()],[b.getNorth(),b.getWest()]];
+  if(!S.maskLayer){ S.maskLayer=L.polygon([world,hole],{renderer:dimRenderer,stroke:false,fillColor:"#1a1a1a",fillOpacity:.16,fillRule:"evenodd",interactive:false}).addTo(map); }
+  else S.maskLayer.setLatLngs([world,hole]);
 }
 function drawGrid(){
   if(!S.gridLayer){ S.gridLayer=L.layerGroup().addTo(map); }
