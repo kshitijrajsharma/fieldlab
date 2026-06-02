@@ -55,6 +55,12 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family
   border-radius:50%;color:var(--red);font-size:11px;flex:none;font-weight:700;transition:.2s;}
 .sec.done .step{background:var(--red);color:#fff;}
 .sec .hint{font-size:11px;color:var(--faint);margin-left:auto;text-transform:none;font-weight:400;}
+.sec h2.acc{cursor:pointer;user-select:none;}
+.acc-chev{width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid var(--muted);transition:transform .28s;flex:none;margin-left:8px;}
+.sec.open h2.acc .acc-chev{transform:rotate(180deg);}
+.acc-body{display:grid;grid-template-rows:0fr;transition:grid-template-rows .28s ease;}
+.sec.open .acc-body{grid-template-rows:1fr;}
+.acc-body>.acc-inner{overflow:hidden;min-height:0;}
 
 .row{display:flex;gap:8px;}
 input[type=text],input[type=number],select,textarea{
@@ -217,7 +223,8 @@ pre .c{color:var(--faint);}
     </div>
 
     <div class="sec" id="secParams">
-      <h2><span class="step">4</span> inference <span class="hint" id="paramHint">defaults from STAC</span></h2>
+      <h2 class="acc"><span class="step">4</span> inference <span class="hint" id="paramHint">defaults from STAC</span><span class="acc-chev"></span></h2>
+      <div class="acc-body"><div class="acc-inner">
       <div class="pp" style="margin-bottom:15px">
         <div class="lab"><span class="k">zoom</span><span class="v" id="zoomV">19</span></div>
         <div class="ctl">
@@ -232,6 +239,7 @@ pre .c{color:var(--faint);}
         <label class="toggle" style="margin-left:auto"><input type="checkbox" id="rawToggle"><span class="sw"></span>raw json</label>
       </div>
       <textarea id="rawParams" rows="6" style="display:none;margin-top:10px"></textarea>
+      </div></div>
     </div>
 
     <div class="sec" id="secArea">
@@ -612,6 +620,7 @@ $("#geoBtn").onclick=geocode;
 $("#geo").addEventListener('keydown',e=>{ if(e.key==="Enter") geocode(); });
 $("#scanBtn").onclick=scanImagery; $("#imgCol").onchange=scanImagery;
 $("#burger").onclick=()=>$("#panel").classList.toggle("collapsed");
+$("#secParams h2.acc").onclick=()=>$("#secParams").classList.toggle("open");
 
 renderChips(); loadModels(); $("#secArea").classList.add("done"); updateRunBox(); readoutRunArea(); scanImagery(); refresh();
 }
