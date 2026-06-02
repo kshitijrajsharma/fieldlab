@@ -25,6 +25,9 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family
 .leaflet-bar a{background:#fff;color:var(--ink);border-color:var(--line2)!important;font-weight:600;}
 .leaflet-bar a:hover{background:#f3f3f3;color:var(--red);}
 .leaflet-tooltip{font-family:var(--sans);font-size:12px;}
+#runbox{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:440;
+  border:2px dashed #1a1a1a;border-radius:2px;pointer-events:none;display:none;
+  box-shadow:0 0 0 1.5px rgba(255,255,255,.9), 0 0 0 100vmax rgba(20,20,20,.14);}
 .aoi{filter:drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff);}
 .pred{filter:drop-shadow(0 0 1px rgba(255,255,255,.95));}
 
@@ -162,6 +165,7 @@ pre .c{color:var(--faint);}
 <body>
 
 <div id="map"></div>
+<div id="runbox"></div>
 <div id="fatal"><div><h3>Map library did not load</h3><p>Leaflet could not be fetched from the CDN. Check your network connection and reload. On GitHub Pages this loads fine.</p></div></div>
 
 <button id="burger" title="panel">Menu</button>
@@ -292,7 +296,7 @@ const PLACES=[
 ];
 
 const S={model:null,models:[],imagery:null,imgLayer:null,footprints:L.layerGroup(),
-  params:{},zoom:19,runSize:300,runRect:null,drawnBox:null,drawing:false,scenes:[],pinnedId:null,moveTimer:null,suppressClick:false,resultLayer:null,lastResponse:null,tab:"curl"};
+  params:{},zoom:19,runSize:300,drawnRect:null,drawnBox:null,drawing:false,scenes:[],pinnedId:null,moveTimer:null,suppressClick:false,resultLayer:null,lastResponse:null,tab:"curl"};
 
 const map=L.map('map',{zoomControl:false,attributionControl:true}).setView(PLACES[0].c,15);
 L.control.zoom({position:'bottomright'}).addTo(map);
@@ -457,8 +461,11 @@ $("#opacity").style.setProperty('--fill','100%');
 $("#runSize").style.setProperty('--fill',((300-100)/1400*100)+'%');
 $("#fitImg").onclick=()=>{ if(S.imagery){ const gj=L.geoJSON(S.imagery.geom); map.fitBounds(gj.getBounds(),{padding:[40,40]}); } };
 
-// The run area is a visible box you can see on the map: a sized square centered on
-// your view (follows as you pan), or a custom box you draw. This is what gets run.
+// Run area. Two modes:
+//  - centered: a screen-locked reticle (#runbox) that stays dead-center and glides with you as you pan.
+//  - custom: a map-anchored box you draw, fixed to a location.
+// Either way, the bbox sent is exactly the box.
+function metersPerPixel(){ return 156543.03392 * Math.cos(map.getCenter().lat*Math.PI/180) / Math.pow(2, map.getZoom()); }
 function runBounds(){
   if(S.drawnBox) return S.drawnBox;
   const c=map.getCenter(), d=S.runSize/2;
@@ -467,23 +474,29 @@ function runBounds(){
 }
 function effectiveBbox(){ const b=runBounds();
   return [b.getWest(),b.getSouth(),b.getEast(),b.getNorth()].map(fmt); }
-function drawRunBox(){
-  if(S.runRect) map.removeLayer(S.runRect);
-  S.runRect=L.rectangle(runBounds(),{color:DARK,weight:2,fill:false,dashArray:"6 4",className:"aoi",interactive:false}).addTo(map);
+function updateRunBox(){          // size the centered reticle to runSize meters at current zoom
+  const rb=$("#runbox");
+  if(S.drawnBox){ rb.style.display="none"; return; }
+  rb.style.display="block";
+  const px=Math.max(8, S.runSize/metersPerPixel());
+  rb.style.width=px+"px"; rb.style.height=px+"px";
 }
 function readoutRunArea(){
   const [w,s,e,n]=effectiveBbox(), lat=(s+n)/2, mLon=111320*Math.cos(lat*Math.PI/180),
     W=Math.abs(e-w)*mLon, H=Math.abs(n-s)*111320;
-  $("#bboxRead").innerHTML=`The dashed box on the map is the run area: <b>${Math.round(W)} x ${Math.round(H)} m</b> (${(W*H/1e6).toFixed(3)} km2)${S.drawnBox?", custom":", centered on view"}.`;
+  $("#bboxRead").innerHTML=`Run area: <b>${Math.round(W)} x ${Math.round(H)} m</b> (${(W*H/1e6).toFixed(3)} km2)${S.drawnBox?", custom box":", follows your view"}.`;
 }
 $("#runSize").oninput=e=>{ S.runSize=+e.target.value; $("#runSizeV").textContent=S.runSize+" m";
   e.target.style.setProperty('--fill',((S.runSize-100)/(1500-100)*100)+'%');
-  if(!S.drawnBox){ drawRunBox(); readoutRunArea(); refresh(); } };
-function setDrawnBox(bounds){ S.drawnBox=bounds; drawRunBox();
-  $("#resetArea").style.display="block"; readoutRunArea(); refresh();
+  updateRunBox(); readoutRunArea(); refresh(); };
+function setDrawnBox(bounds){ S.drawnBox=bounds;
+  if(S.drawnRect) map.removeLayer(S.drawnRect);
+  S.drawnRect=L.rectangle(bounds,{color:DARK,weight:2,fill:false,dashArray:"6 4",className:"aoi",interactive:false}).addTo(map);
+  updateRunBox(); $("#resetArea").style.display="block"; readoutRunArea(); refresh();
 }
-$("#resetArea").onclick=()=>{ S.drawnBox=null; drawRunBox();
-  $("#resetArea").style.display="none"; readoutRunArea(); refresh(); };
+$("#resetArea").onclick=()=>{ S.drawnBox=null; if(S.drawnRect){map.removeLayer(S.drawnRect);S.drawnRect=null;}
+  updateRunBox(); $("#resetArea").style.display="none"; readoutRunArea(); refresh(); };
+map.on('zoomend',updateRunBox);
 let dStart=null, dRect=null;
 $("#drawBtn").onclick=()=>{ S.drawing=!S.drawing;
   $("#drawBtn").textContent=S.drawing?"Cancel":"Draw custom area";
@@ -520,7 +533,7 @@ map.on('click',e=>{ if(S.drawing||S.suppressClick) return;
 // As you pan/zoom, keep the right imagery loaded for where you are.
 // Cheap: reuse already-loaded scenes; only hit the network when you leave coverage.
 map.on('moveend',()=>{ if(S.drawing) return; clearTimeout(S.moveTimer); S.moveTimer=setTimeout(()=>{
-  if(!S.drawnBox) drawRunBox();
+  if(!S.drawnBox) updateRunBox();
   readoutRunArea();
   const c=map.getCenter();
   if(S.imagery && geomHit(S.imagery.geom,c.lng,c.lat)) return;   // current imagery still covers view
@@ -600,7 +613,7 @@ $("#geo").addEventListener('keydown',e=>{ if(e.key==="Enter") geocode(); });
 $("#scanBtn").onclick=scanImagery; $("#imgCol").onchange=scanImagery;
 $("#burger").onclick=()=>$("#panel").classList.toggle("collapsed");
 
-renderChips(); loadModels(); $("#secArea").classList.add("done"); drawRunBox(); readoutRunArea(); scanImagery(); refresh();
+renderChips(); loadModels(); $("#secArea").classList.add("done"); updateRunBox(); readoutRunArea(); scanImagery(); refresh();
 }
 ensureLeaflet(boot);
 </script>
