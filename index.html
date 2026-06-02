@@ -171,6 +171,7 @@ pre .c{color:var(--faint);}
   #panelClose{display:inline-flex;} #fab{display:block;}
   #topright{flex-wrap:wrap;justify-content:flex-end;max-width:58vw;gap:6px;}
   #panel .head{padding-top:18px;}
+  body.panel-open #burger,body.panel-open #topright,body.panel-open #fab{display:none;}
 }
 </style>
 </head>
@@ -323,7 +324,7 @@ const PLACES=[
 ];
 
 const S={model:null,models:[],imagery:null,imgLayer:null,footprints:L.layerGroup(),
-  params:{},zoom:19,tileSpan:2,drawnRect:null,drawnBox:null,drawing:false,scenes:[],pinnedId:null,moveTimer:null,suppressClick:false,shareLock:false,runRect:null,gridLayer:null,maskLayer:null,showGrid:true,predFill:0.35,meMarker:null,resultLayer:null,lastResponse:null,running:false,tab:"curl"};
+  params:{},zoom:19,tileSpan:2,drawnRect:null,drawnBox:null,drawing:false,scenes:[],pinnedId:null,moveTimer:null,suppressClick:false,shareLock:false,runRect:null,gridLayer:null,maskLayer:null,showGrid:true,predFill:0.35,meMarker:null,resultLayer:null,lastResponse:null,running:false,sentBbox:null,sentRect:null,tab:"curl"};
 
 const map=L.map('map',{zoomControl:false,attributionControl:true}).setView(PLACES[0].c,15);
 map.createPane('dimPane'); map.getPane('dimPane').style.zIndex=350; map.getPane('dimPane').style.pointerEvents='none';
@@ -549,6 +550,10 @@ function readoutRunArea(){
   $("#bboxRead").innerHTML=`Snapped to the tile grid at zoom ${t.z}: <b>${t.nx} x ${t.ny} tiles</b>, about <b>${Math.round(W)} x ${Math.round(H)} m</b>${S.drawnBox?", custom box":""}.`;
   $("#areaHint").textContent = S.drawnBox?"custom box":(t.nx+"x"+t.ny+" tiles");
 }
+function drawSentRect(){ if(!S.sentBbox)return; const [w,s,e,n]=S.sentBbox;
+  const b=L.latLngBounds([s,w],[n,e]);
+  if(!S.sentRect){ S.sentRect=L.rectangle(b,{color:"#2b7fff",weight:2,fill:false,className:"sent",interactive:false}).addTo(map); }
+  else S.sentRect.setBounds(b); }
 function refreshRunArea(){ drawRunBox(); drawGrid(); readoutRunArea(); }
 let rafBox=false;
 function scheduleBox(){ if(rafBox) return; rafBox=true; requestAnimationFrame(()=>{ rafBox=false; drawRunBox(); }); }
@@ -604,6 +609,7 @@ map.on('moveend',()=>{ if(S.drawing) return; clearTimeout(S.moveTimer); S.moveTi
 }, 700); });
 
 function clearResults(){ if(S.resultLayer){ map.removeLayer(S.resultLayer); S.resultLayer=null; }
+  if(S.sentRect){ map.removeLayer(S.sentRect); S.sentRect=null; }
   if(!map.hasLayer(S.footprints)) map.addLayer(S.footprints);
   $("#dlBtn").style.display="none"; $("#fit").style.display="none"; $("#clearBtn").style.display="none"; }
 function buildBody(){ if(!S.model||!S.imagery) return null;
@@ -616,7 +622,7 @@ function colorJSON(str){ return str.replace(/&/g,"&amp;").replace(/</g,"&lt;")
   .replace(/: (-?\d+\.?\d*)/g,': <span class="n">$1</span>'); }
 function refresh(){
   const body=buildBody(); const dis=!body||S.running; $("#runBtn").disabled=dis;
-  const fab=document.getElementById('fab'); if(fab) fab.disabled=dis;
+  const fab=document.getElementById('fab'); if(fab){ fab.disabled=dis; fab.textContent=S.running?"Running...":"Run"; }
   if(body && $("#status").dataset.state!=="busy" && $("#status").dataset.state!=="done")
     setStatus(`Ready: ${S.model.name} on ${S.imagery.title.slice(0,22)}`);
   if(S.tab==="curl") $("#curlOut").innerHTML=body?colorJSON(buildCurl(body,S.model.endpoint)):'<span class="c">// select a model, imagery and an area to build the request</span>';
@@ -629,6 +635,7 @@ let timer=null;
 async function runInference(){
   if(S.running)return;
   const body=buildBody(); if(!body)return; const ep=S.model.endpoint;
+  S.sentBbox=body.bbox.slice();
   S.running=true; refresh();
   $("#console").classList.remove("down"); const t0=performance.now();
   timer=setInterval(()=>setStatus(`<span class="spin"></span> running <span class="blink">${((performance.now()-t0)/1000).toFixed(1)}s</span>`,"busy"),100);
@@ -643,7 +650,11 @@ async function runInference(){
       const n=(gj.features||[]).length;
       S.resultLayer=L.geoJSON(gj,{interactive:false,style:{color:RED,weight:2,fillColor:RED,fillOpacity:S.predFill,className:"pred"},
         pointToLayer:(f,ll)=>L.circleMarker(ll,{radius:5,color:RED,weight:2,fillColor:RED,fillOpacity:Math.max(S.predFill,.25),interactive:false,className:"pred"})}).addTo(map);
-      if(n) map.fitBounds(S.resultLayer.getBounds(),{padding:[60,60],maxZoom:20});
+      drawSentRect();
+      if(n){ const rb=S.resultLayer.getBounds();
+        console.log("sent bbox [W,S,E,N]:", S.sentBbox);
+        console.log("result bounds [W,S,E,N]:", [rb.getWest(),rb.getSouth(),rb.getEast(),rb.getNorth()]);
+        map.fitBounds(rb,{padding:[60,60],maxZoom:20}); }
       map.removeLayer(S.footprints);
       setStatus(`<span class="ok">OK: ${n} feature${n!==1?'s':''}</span>, ${dt}s`,"done");
       $("#dlBtn").style.display="inline-flex"; $("#fit").style.display="inline-flex"; $("#clearBtn").style.display="inline-flex";
@@ -743,10 +754,12 @@ $("#locBtn").onclick=()=>{
 };
 $("#geo").addEventListener('keydown',e=>{ if(e.key==="Enter") geocode(); });
 $("#scanBtn").onclick=scanImagery; $("#imgCol").onchange=scanImagery;
-$("#burger").onclick=()=>$("#panel").classList.toggle("collapsed");
-$("#panelClose").onclick=()=>$("#panel").classList.add("collapsed");
+function syncPanel(){ document.body.classList.toggle('panel-open',!$("#panel").classList.contains('collapsed')); }
+$("#burger").onclick=()=>{ $("#panel").classList.toggle("collapsed"); syncPanel(); };
+$("#panelClose").onclick=()=>{ $("#panel").classList.add("collapsed"); syncPanel(); };
 $("#fab").onclick=runInference;
-function maybeCollapse(){ if(window.innerWidth<=760) setTimeout(()=>$("#panel").classList.add("collapsed"),300); }
+function maybeCollapse(){ if(window.innerWidth<=760) setTimeout(()=>{ $("#panel").classList.add("collapsed"); syncPanel(); },300); }
+syncPanel();
 document.querySelectorAll('.sec h2.acc').forEach(h=>h.onclick=()=>h.closest('.sec').classList.toggle('open'));
 
 renderChips();
