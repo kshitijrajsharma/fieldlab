@@ -27,7 +27,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family
 .leaflet-tooltip{font-family:var(--sans);font-size:12px;}
 #runbox{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:440;
   border:2px dashed #1a1a1a;border-radius:2px;pointer-events:none;display:none;
-  box-shadow:0 0 0 1.5px rgba(255,255,255,.9), 0 0 0 100vmax rgba(20,20,20,.14);}
+  box-shadow:0 0 0 1.5px rgba(255,255,255,.9), 0 0 0 3px rgba(224,30,38,.22);}
 .aoi{filter:drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff);}
 .pred{filter:drop-shadow(0 0 1px rgba(255,255,255,.95));}
 
@@ -176,6 +176,7 @@ pre .c{color:var(--faint);}
 
 <button id="burger" title="panel">Menu</button>
 <div id="topright" style="position:fixed;top:14px;right:14px;z-index:700;display:flex;gap:8px">
+  <button id="shareBtn" class="btn mini">Share link</button>
   <button id="clearBtn" class="btn mini" style="display:none">Clear results</button>
   <button id="fit" class="btn mini" style="display:none">Fit to results</button>
 </div>
@@ -184,7 +185,7 @@ pre .c{color:var(--faint);}
   <div class="head">
     <h1>fAIr <b>field lab</b></h1>
     <div class="rule"></div>
-    <p>Go to a place and it loads the imagery and a model automatically. A dashed box on the map marks where it runs, centered on your view and resizable. Hit Run. The exact request is shown below as curl.</p>
+    <p>Go to a place and it loads the imagery and a model automatically. A dashed box on the map marks where it runs, centered on your view and resizable. Hit Run, or Share link to send this exact view and have it run for whoever opens it.</p>
   </div>
 
   <div class="scroll">
@@ -304,18 +305,20 @@ const PLACES=[
 ];
 
 const S={model:null,models:[],imagery:null,imgLayer:null,footprints:L.layerGroup(),
-  params:{},zoom:19,runSize:300,drawnRect:null,drawnBox:null,drawing:false,scenes:[],pinnedId:null,moveTimer:null,suppressClick:false,resultLayer:null,lastResponse:null,tab:"curl"};
+  params:{},zoom:19,runSize:300,drawnRect:null,drawnBox:null,drawing:false,scenes:[],pinnedId:null,moveTimer:null,suppressClick:false,shareLock:false,resultLayer:null,lastResponse:null,tab:"curl"};
 
 const map=L.map('map',{zoomControl:false,attributionControl:true}).setView(PLACES[0].c,15);
 L.control.zoom({position:'bottomright'}).addTo(map);
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
-  maxZoom:22, attribution:'Map data OpenStreetMap, CARTO. Imagery OpenAerialMap / HOTOSM'
+  maxZoom:22, updateWhenZooming:false, updateWhenIdle:true, keepBuffer:2,
+  attribution:'Map data OpenStreetMap, CARTO. Imagery OpenAerialMap / HOTOSM'
 }).addTo(map);
 S.footprints.addTo(map);
 
 const $=s=>document.querySelector(s);
 const fmt=n=>Math.round(n*1e6)/1e6;
 
+let modelsReady=null;
 async function loadModels(){
   const el=$("#modelList");
   el.innerHTML='<div class="empty"><span class="spin"></span> loading models...</div>';
@@ -400,6 +403,7 @@ function setZoom(v){v=Math.min(22,Math.max(14,+v||19));S.zoom=v;$("#zoom").value
 $("#zoom").oninput=e=>setZoom(e.target.value); $("#zoomN").oninput=e=>setZoom(e.target.value);
 
 async function scanImagery(){
+  S.shareLock=false;
   const col=$("#imgCol").value, b=map.getBounds(),
     bbox=[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()].map(fmt), list=$("#imgList");
   clearResults();
@@ -445,16 +449,15 @@ function selectImagery(o,auto){
   S.footprints.eachLayer(l=>l.setStyle&&l.setStyle({color:GREY,opacity:.45,weight:1}));
   if(o.fp) o.fp.setStyle({color:DARK,opacity:.95,weight:2});
   if(S.imgLayer) map.removeLayer(S.imgLayer);
-  if(o.template){ S.imgLayer=L.tileLayer(o.template,{maxZoom:22,maxNativeZoom:22}).addTo(map);
+  if(o.template){ S.imgLayer=L.tileLayer(o.template,{maxZoom:22,maxNativeZoom:22,updateWhenZooming:false,keepBuffer:2}).addTo(map);
     S.imgLayer.setOpacity(+$("#opacity").value/100); }
   S.imagery={image_uri:o.image_uri,template:o.template,title:o.title,col:o.col,geom:o.geom,id:o.id};
-  if(!auto) S.pinnedId=o.id||o.title;            // a manual pick stays pinned while it covers the view
+  if(!auto) S.pinnedId=o.id||o.title;
   $("#secImg").classList.add("done");
   $("#imgCtl").style.display = o.template ? "block" : "none";
   if(!auto){ const gj=L.geoJSON(o.geom); map.fitBounds(gj.getBounds(),{maxZoom:18,padding:[40,40]}); }
   setStatus(auto?`Imagery: ${o.title}`:`Loaded imagery: ${o.title}`); readoutRunArea(); refresh();
 }
-// Pick the right scene for wherever the map is centred, without moving the map.
 function centerHits(){ const c=map.getCenter();
   return S.scenes.filter(s=>geomHit(s.geom,c.lng,c.lat)).sort((a,b)=>geomArea(a.geom)-geomArea(b.geom)); }
 function autoPick(){
@@ -467,12 +470,8 @@ $("#opacity").oninput=e=>{ const v=+e.target.value; $("#opV").textContent=v+"%";
   e.target.style.setProperty('--fill',v+'%'); if(S.imgLayer) S.imgLayer.setOpacity(v/100); };
 $("#opacity").style.setProperty('--fill','100%');
 $("#runSize").style.setProperty('--fill',((300-100)/1400*100)+'%');
-$("#fitImg").onclick=()=>{ if(S.imagery){ const gj=L.geoJSON(S.imagery.geom); map.fitBounds(gj.getBounds(),{padding:[40,40]}); } };
+$("#fitImg").onclick=()=>{ if(S.imagery&&S.imagery.geom){ const gj=L.geoJSON(S.imagery.geom); map.fitBounds(gj.getBounds(),{padding:[40,40]}); } };
 
-// Run area. Two modes:
-//  - centered: a screen-locked reticle (#runbox) that stays dead-center and glides with you as you pan.
-//  - custom: a map-anchored box you draw, fixed to a location.
-// Either way, the bbox sent is exactly the box.
 function metersPerPixel(){ return 156543.03392 * Math.cos(map.getCenter().lat*Math.PI/180) / Math.pow(2, map.getZoom()); }
 function runBounds(){
   if(S.drawnBox) return S.drawnBox;
@@ -482,7 +481,7 @@ function runBounds(){
 }
 function effectiveBbox(){ const b=runBounds();
   return [b.getWest(),b.getSouth(),b.getEast(),b.getNorth()].map(fmt); }
-function updateRunBox(){          // size the centered reticle to runSize meters at current zoom
+function updateRunBox(){
   const rb=$("#runbox");
   if(S.drawnBox){ rb.style.display="none"; return; }
   rb.style.display="block";
@@ -520,8 +519,6 @@ map.on('mouseup',e=>{ if(!S.drawing||!dStart)return; if(dRect){map.removeLayer(d
   S.drawing=false; $("#drawBtn").textContent="Draw custom area"; $("#drawBtn").style.borderColor=""; $("#drawBtn").style.color="";
   map.getContainer().style.cursor=""; map.dragging.enable(); S.suppressClick=true; setTimeout(()=>S.suppressClick=false,250); });
 
-// Reliable "click the footprint on the map": geometric point-in-polygon hit test,
-// independent of Leaflet vector event quirks. Picks the smallest scene under the click.
 function ptInRing(lng,lat,ring){ let inside=false;
   for(let i=0,j=ring.length-1;i<ring.length;j=i++){ const xi=ring[i][0],yi=ring[i][1],xj=ring[j][0],yj=ring[j][1];
     if(((yi>lat)!==(yj>lat)) && (lng < (xj-xi)*(lat-yi)/((yj-yi)||1e-12)+xi)) inside=!inside; }
@@ -538,15 +535,14 @@ map.on('click',e=>{ if(S.drawing||S.suppressClick) return;
   hits.sort((a,b)=>geomArea(a.geom)-geomArea(b.geom));
   selectImagery(hits[0]); });
 
-// As you pan/zoom, keep the right imagery loaded for where you are.
-// Cheap: reuse already-loaded scenes; only hit the network when you leave coverage.
 map.on('moveend',()=>{ if(S.drawing) return; clearTimeout(S.moveTimer); S.moveTimer=setTimeout(()=>{
   if(!S.drawnBox) updateRunBox();
   readoutRunArea();
+  if(S.shareLock) return;
   const c=map.getCenter();
-  if(S.imagery && geomHit(S.imagery.geom,c.lng,c.lat)) return;   // current imagery still covers view
-  if(centerHits().length){ autoPick(); return; }                // covered by a loaded scene, no fetch
-  scanImagery();                                                 // out of coverage: fetch + auto-pick
+  if(S.imagery && geomHit(S.imagery.geom,c.lng,c.lat)) return;
+  if(centerHits().length){ autoPick(); return; }
+  scanImagery();
 }, 700); });
 
 function clearResults(){ if(S.resultLayer){ map.removeLayer(S.resultLayer); S.resultLayer=null; }
@@ -571,7 +567,7 @@ function refresh(){
 }
 function setStatus(html,state){ const s=$("#status"); s.innerHTML=html; s.dataset.state=state||""; }
 let timer=null;
-$("#runBtn").onclick=async()=>{
+async function runInference(){
   const body=buildBody(); if(!body)return; const ep=S.model.endpoint;
   $("#console").classList.remove("down"); const t0=performance.now();
   timer=setInterval(()=>setStatus(`<span class="spin"></span> running <span class="blink">${((performance.now()-t0)/1000).toFixed(1)}s</span>`,"busy"),100);
@@ -594,12 +590,61 @@ $("#runBtn").onclick=async()=>{
     S.tab="resp"; setTab();
   }catch(e){ clearInterval(timer); S.lastResponse=String(e); S.tab="resp"; setTab();
     setStatus(`<span class="err">Error: ${e.message}</span>. Network or CORS blocked, or the endpoint is down. The curl is still copyable.`,"done"); }
-};
+}
+$("#runBtn").onclick=runInference;
 $("#dlBtn").onclick=()=>{ if(!S.lastResponse)return;
   const blob=new Blob([typeof S.lastResponse==="string"?S.lastResponse:JSON.stringify(S.lastResponse,null,2)],{type:"application/geo+json"});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download="predictions.geojson"; a.click(); };
 $("#fit").onclick=()=>{ if(S.resultLayer) map.fitBounds(S.resultLayer.getBounds(),{padding:[60,60]}); };
 $("#clearBtn").onclick=()=>{ clearResults(); setStatus("Results cleared."); };
+
+// ---- Shareable deep links ----
+function shareURL(){
+  const c=map.getCenter(), sp=new URLSearchParams();
+  sp.set('lat',c.lat.toFixed(5)); sp.set('lng',c.lng.toFixed(5)); sp.set('z',map.getZoom());
+  if(S.model) sp.set('m',S.model.id);
+  sp.set('zoom',S.zoom);
+  if(S.drawnBox){ const b=S.drawnBox; sp.set('bbox',[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()].map(fmt).join(',')); }
+  else sp.set('size',S.runSize);
+  if(S.imagery){ sp.set('img',S.imagery.image_uri); if(S.imagery.template) sp.set('tmpl',S.imagery.template); if(S.imagery.title) sp.set('name',S.imagery.title); }
+  sp.set('p',JSON.stringify(S.params));
+  sp.set('run','1');
+  return location.origin+location.pathname+'#'+sp.toString();
+}
+$("#shareBtn").onclick=()=>{
+  const url=shareURL();
+  try{ history.replaceState(null,'','#'+url.split('#')[1]); }catch(_){}
+  const done=()=>{ const b=$("#shareBtn"); b.textContent="Link copied"; setTimeout(()=>b.textContent="Share link",1500); };
+  if(navigator.clipboard) navigator.clipboard.writeText(url).then(done).catch(done); else done();
+};
+function parseShare(){
+  if(!location.hash || location.hash.length<2) return null;
+  const sp=new URLSearchParams(location.hash.slice(1));
+  return (sp.has('img')||sp.has('m')||sp.has('lat')) ? sp : null;
+}
+async function applyShare(sp){
+  S.shareLock=true;
+  const lat=parseFloat(sp.get('lat')), lng=parseFloat(sp.get('lng')), z=parseInt(sp.get('z'))||16;
+  if(isFinite(lat)&&isFinite(lng)) map.setView([lat,lng],z);
+  if(sp.has('zoom')) setZoom(parseInt(sp.get('zoom')));
+  if(sp.has('size')){ S.runSize=parseInt(sp.get('size'))||300; $("#runSize").value=S.runSize;
+    $("#runSizeV").textContent=S.runSize+" m"; $("#runSize").style.setProperty('--fill',((S.runSize-100)/1400*100)+'%'); updateRunBox(); }
+  if(sp.has('bbox')){ const a=sp.get('bbox').split(',').map(Number); if(a.length===4) setDrawnBox(L.latLngBounds([a[1],a[0]],[a[3],a[2]])); }
+  if(sp.has('img')){
+    if(S.imgLayer) map.removeLayer(S.imgLayer);
+    const tmpl=sp.get('tmpl')||null;
+    if(tmpl){ S.imgLayer=L.tileLayer(tmpl,{maxZoom:22,maxNativeZoom:22,updateWhenZooming:false,keepBuffer:2}).addTo(map); S.imgLayer.setOpacity(+$("#opacity").value/100); }
+    S.imagery={image_uri:sp.get('img'),template:tmpl,title:sp.get('name')||"Shared imagery",col:"",geom:null,id:"shared"};
+    S.pinnedId="shared"; $("#secImg").classList.add("done"); $("#imgHint").textContent="from link";
+    $("#imgList").innerHTML='<div class="empty">Imagery loaded from a shared link. Hit Scan to browse other imagery here.</div>';
+    $("#imgCtl").style.display=tmpl?"block":"none";
+  }
+  if(modelsReady) await modelsReady;
+  if(sp.has('m')){ const m=S.models.find(x=>x.id===sp.get('m')); if(m) selectModel(m); }
+  if(sp.has('p')){ try{ S.params=JSON.parse(sp.get('p')); renderParams(); }catch(_){} }
+  readoutRunArea(); refresh();
+  if(sp.get('run')==='1'){ setStatus("Running shared view..."); setTimeout(runInference,500); }
+}
 
 function setTab(){ document.querySelectorAll('.ctab').forEach(t=>t.classList.toggle('on',t.dataset.tab===S.tab));
   $("#console .ttl").textContent=S.tab==="resp"?"response":"request"; refresh(); }
@@ -610,10 +655,10 @@ $("#copyBtn").onclick=()=>{ const txt=$("#curlOut").innerText;
 
 function renderChips(){ const el=$("#placeChips");
   PLACES.forEach(p=>{ const c=document.createElement('span'); c.className="chip"; c.textContent=p.n;
-    c.onclick=()=>{ map.setView(p.c,16); $("#secLoc").classList.add("done"); }; el.appendChild(c); }); }
+    c.onclick=()=>{ S.shareLock=false; map.setView(p.c,16); $("#secLoc").classList.add("done"); }; el.appendChild(c); }); }
 async function geocode(){ const q=$("#geo").value.trim(); if(!q)return; $("#geoBtn").textContent="...";
   try{ const r=await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`,{headers:{Accept:"application/json"}});
-    const d=await r.json(); if(d[0]){ map.setView([+d[0].lat,+d[0].lon],16); $("#secLoc").classList.add("done"); }
+    const d=await r.json(); if(d[0]){ S.shareLock=false; map.setView([+d[0].lat,+d[0].lon],16); $("#secLoc").classList.add("done"); }
     else setStatus(`<span class="err">No match for "${q}"</span>`); }
   catch(e){ setStatus('<span class="err">Geocode failed</span>'); } $("#geoBtn").textContent="Go"; }
 $("#geoBtn").onclick=geocode;
@@ -622,7 +667,12 @@ $("#scanBtn").onclick=scanImagery; $("#imgCol").onchange=scanImagery;
 $("#burger").onclick=()=>$("#panel").classList.toggle("collapsed");
 $("#secParams h2.acc").onclick=()=>$("#secParams").classList.toggle("open");
 
-renderChips(); loadModels(); $("#secArea").classList.add("done"); updateRunBox(); readoutRunArea(); scanImagery(); refresh();
+renderChips();
+modelsReady=loadModels();
+$("#secArea").classList.add("done"); updateRunBox(); readoutRunArea();
+const shared=parseShare();
+if(shared) applyShare(shared); else scanImagery();
+refresh();
 }
 ensureLeaflet(boot);
 </script>
