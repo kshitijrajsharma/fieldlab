@@ -255,8 +255,8 @@ pre .c{color:var(--faint);}
       <h2 class="acc"><span class="step">5</span> run area <span class="hint" id="areaHint">300 m box</span><span class="acc-chev"></span></h2>
       <div class="acc-body"><div class="acc-inner">
       <div class="pp" style="padding-top:2px">
-        <div class="lab"><span class="k">box size</span><span class="v" id="runSizeV">4 x 4 tiles</span></div>
-        <div class="ctl"><input type="range" id="runSize" min="2" max="20" step="2" value="4"></div>
+        <div class="lab"><span class="k">box size</span><span class="v" id="runSizeV">2 x 2 tiles</span></div>
+        <div class="ctl"><input type="range" id="runSize" min="2" max="20" step="2" value="2"></div>
       </div>
       <div class="bbox-read" id="bboxRead">The dashed box on the map is the run area.</div>
       <div class="pp" style="margin-top:14px">
@@ -323,7 +323,7 @@ const PLACES=[
 ];
 
 const S={model:null,models:[],imagery:null,imgLayer:null,footprints:L.layerGroup(),
-  params:{},zoom:19,tileSpan:4,drawnRect:null,drawnBox:null,drawing:false,scenes:[],pinnedId:null,moveTimer:null,suppressClick:false,shareLock:false,runRect:null,gridLayer:null,maskLayer:null,showGrid:true,predFill:0.35,meMarker:null,resultLayer:null,lastResponse:null,tab:"curl"};
+  params:{},zoom:19,tileSpan:2,drawnRect:null,drawnBox:null,drawing:false,scenes:[],pinnedId:null,moveTimer:null,suppressClick:false,shareLock:false,runRect:null,gridLayer:null,maskLayer:null,showGrid:true,predFill:0.35,meMarker:null,resultLayer:null,lastResponse:null,running:false,tab:"curl"};
 
 const map=L.map('map',{zoomControl:false,attributionControl:true}).setView(PLACES[0].c,15);
 map.createPane('dimPane'); map.getPane('dimPane').style.zIndex=350; map.getPane('dimPane').style.pointerEvents='none';
@@ -491,7 +491,7 @@ function autoPick(){
   const choose = pinned || hits[0] || S.scenes[0];
   if(choose) selectImagery(choose,true);
 }
-$("#runSize").style.setProperty('--fill',((4-2)/18*100)+'%');
+$("#runSize").style.setProperty('--fill',((2-2)/18*100)+'%');
 $("#predFill").style.setProperty('--fill','35%');
 $("#fitImg").onclick=()=>{ if(S.imagery&&S.imagery.geom){ const gj=L.geoJSON(S.imagery.geom); map.fitBounds(gj.getBounds(),{padding:[40,40]}); } };
 
@@ -615,7 +615,7 @@ function colorJSON(str){ return str.replace(/&/g,"&amp;").replace(/</g,"&lt;")
   .replace(/: ("(?:[^"\\]|\\.)*")/g,': <span class="s">$1</span>')
   .replace(/: (-?\d+\.?\d*)/g,': <span class="n">$1</span>'); }
 function refresh(){
-  const body=buildBody(); const dis=!body; $("#runBtn").disabled=dis;
+  const body=buildBody(); const dis=!body||S.running; $("#runBtn").disabled=dis;
   const fab=document.getElementById('fab'); if(fab) fab.disabled=dis;
   if(body && $("#status").dataset.state!=="busy" && $("#status").dataset.state!=="done")
     setStatus(`Ready: ${S.model.name} on ${S.imagery.title.slice(0,22)}`);
@@ -627,7 +627,9 @@ function refresh(){
 function setStatus(html,state){ const s=$("#status"); s.innerHTML=html; s.dataset.state=state||""; }
 let timer=null;
 async function runInference(){
+  if(S.running)return;
   const body=buildBody(); if(!body)return; const ep=S.model.endpoint;
+  S.running=true; refresh();
   $("#console").classList.remove("down"); const t0=performance.now();
   timer=setInterval(()=>setStatus(`<span class="spin"></span> running <span class="blink">${((performance.now()-t0)/1000).toFixed(1)}s</span>`,"busy"),100);
   if(S.resultLayer) map.removeLayer(S.resultLayer);
@@ -649,6 +651,7 @@ async function runInference(){
     S.tab="resp"; setTab();
   }catch(e){ clearInterval(timer); S.lastResponse=String(e); S.tab="resp"; setTab();
     setStatus(`<span class="err">Error: ${e.message}</span>. Network or CORS blocked, or the endpoint is down. The curl is still copyable.`,"done"); }
+  finally{ S.running=false; refresh(); }
 }
 $("#runBtn").onclick=runInference;
 $("#dlBtn").onclick=()=>{ if(!S.lastResponse)return;
@@ -686,7 +689,7 @@ async function applyShare(sp){
   const lat=parseFloat(sp.get('lat')), lng=parseFloat(sp.get('lng')), z=parseInt(sp.get('z'))||16;
   if(isFinite(lat)&&isFinite(lng)) map.setView([lat,lng],z);
   if(sp.has('zoom')) setZoom(parseInt(sp.get('zoom')));
-  if(sp.has('size')){ let n=parseInt(sp.get('size'))||4; if(n%2)n++; n=Math.min(20,Math.max(2,n)); S.tileSpan=n; $("#runSize").value=n;
+  if(sp.has('size')){ let n=parseInt(sp.get('size'))||2; if(n%2)n++; n=Math.min(20,Math.max(2,n)); S.tileSpan=n; $("#runSize").value=n;
     $("#runSizeV").textContent=n+" x "+n+" tiles"; $("#runSize").style.setProperty('--fill',((n-2)/18*100)+'%'); refreshRunArea(); }
   if(sp.has('bbox')){ const a=sp.get('bbox').split(',').map(Number); if(a.length===4) setDrawnBox(L.latLngBounds([a[1],a[0]],[a[3],a[2]])); }
   if(sp.has('img')){
