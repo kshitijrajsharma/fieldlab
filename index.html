@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>fAIr field lab</title>
+<title>fAIr Lab</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -25,9 +25,6 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family
 .leaflet-bar a{background:#fff;color:var(--ink);border-color:var(--line2)!important;font-weight:600;}
 .leaflet-bar a:hover{background:#f3f3f3;color:var(--red);}
 .leaflet-tooltip{font-family:var(--sans);font-size:12px;}
-#runbox{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:440;
-  border:2px dashed #1a1a1a;border-radius:2px;pointer-events:none;display:none;
-  box-shadow:0 0 0 1.5px rgba(255,255,255,.9), 0 0 0 3px rgba(224,30,38,.22);}
 .aoi{filter:drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff);}
 .pred{filter:drop-shadow(0 0 1px rgba(255,255,255,.95));}
 
@@ -157,6 +154,12 @@ pre .c{color:var(--faint);}
 #burger{position:fixed;top:14px;left:14px;z-index:700;height:40px;padding:0 14px;border:1px solid var(--black);
   background:#fff;color:var(--ink);display:none;align-items:center;cursor:pointer;font-size:13px;font-weight:600;font-family:var(--sans);}
 #fit{}
+#panelClose{display:none;position:absolute;top:16px;right:16px;border:1px solid var(--line2);background:#fff;
+  color:var(--ink);font-family:var(--sans);font-size:12px;font-weight:600;padding:6px 11px;cursor:pointer;}
+#fab{position:fixed;right:16px;bottom:54px;z-index:710;display:none;border:none;cursor:pointer;
+  background:var(--red);color:#fff;font-weight:700;font-family:var(--sans);font-size:15px;
+  padding:15px 24px;border-radius:30px;box-shadow:0 6px 18px rgba(0,0,0,.28);}
+#fab:disabled{background:#c4c4c4;box-shadow:none;}
 
 .empty{font-size:12px;color:var(--faint);padding:8px 2px;line-height:1.6;}
 .empty b{color:var(--muted);font-weight:600;}
@@ -164,14 +167,16 @@ pre .c{color:var(--faint);}
 @keyframes sp{to{transform:rotate(360deg);}}
 
 @media(max-width:760px){
-  #panel{width:340px;} #console{left:0 !important;max-height:42vh;} #burger{display:flex;}
+  #panel{width:100%;max-width:100%;} #console{left:0 !important;max-height:42vh;} #burger{display:flex;}
+  #panelClose{display:inline-flex;} #fab{display:block;}
+  #topright{flex-wrap:wrap;justify-content:flex-end;max-width:58vw;gap:6px;}
+  #panel .head{padding-top:18px;}
 }
 </style>
 </head>
 <body>
 
 <div id="map"></div>
-<div id="runbox"></div>
 <div id="fatal"><div><h3>Map library did not load</h3><p>Leaflet could not be fetched from the CDN. Check your network connection and reload. On GitHub Pages this loads fine.</p></div></div>
 
 <button id="burger" title="panel">Menu</button>
@@ -183,9 +188,10 @@ pre .c{color:var(--faint);}
 
 <aside id="panel">
   <div class="head">
-    <h1>fAIr <b>field lab</b></h1>
+    <button id="panelClose">View map</button>
+    <h1>fAIr <b>Lab</b></h1>
     <div class="rule"></div>
-    <p>Go to a place and it loads the imagery and a model automatically. A dashed box on the map marks where it runs, centered on your view and resizable. Hit Run, or Share link to send this exact view and have it run for whoever opens it.</p>
+    <p>Search a place, then tap Run. It picks the imagery and a model for you, and the dashed box shows where it runs. Open any section below to fine-tune.</p>
   </div>
 
   <div class="scroll">
@@ -193,14 +199,16 @@ pre .c{color:var(--faint);}
       <h2><span class="step">1</span> location <span class="hint">jump anywhere</span></h2>
       <div class="row">
         <input id="geo" type="text" placeholder="search a place (e.g. Freetown)" autocomplete="off"/>
+        <button class="btn mini" id="locBtn" style="width:auto;padding:7px 9px" title="Use my current location" aria-label="Use my current location"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><line x1="12" y1="2" x2="12" y2="5"></line><line x1="12" y1="19" x2="12" y2="22"></line><line x1="2" y1="12" x2="5" y2="12"></line><line x1="19" y1="12" x2="22" y2="12"></line></svg></button>
         <button class="btn mini" id="geoBtn" style="width:auto">Go</button>
       </div>
       <div class="chips" id="placeChips"></div>
     </div>
 
     <div class="sec" id="secImg">
-      <h2><span class="step">2</span> imagery <span class="hint" id="imgHint">scan the view</span></h2>
-      <div class="row">
+      <h2 class="acc"><span class="step">2</span> imagery <span class="hint" id="imgHint">auto</span><span class="acc-chev"></span></h2>
+      <div class="acc-body"><div class="acc-inner">
+      <div class="row" style="padding-top:2px">
         <select id="imgCol" style="flex:1">
           <option value="openaerialmap">OpenAerialMap</option>
           <option value="maxar-opendata">Maxar Open Data</option>
@@ -208,19 +216,19 @@ pre .c{color:var(--faint);}
         </select>
         <button class="btn mini" id="scanBtn" style="width:auto">Scan</button>
       </div>
-      <div id="imgList"><div class="empty">Jump to a place, then Scan to list imagery in view. Click a result, or click a footprint on the map, to load it.</div></div>
+      <div id="imgList"><div class="empty">Imagery loads automatically for where you are. Open this to pick a different scene, or click a footprint on the map.</div></div>
       <div id="imgCtl">
-        <div class="pp">
-          <div class="lab"><span class="k">imagery opacity</span><span class="v" id="opV">100%</span></div>
-          <div class="ctl"><input type="range" id="opacity" min="0" max="100" step="5" value="100"></div>
-        </div>
-        <button class="btn mini ghost" id="fitImg" style="margin-top:9px;width:100%">Fit to image</button>
+        <button class="btn mini ghost" id="fitImg" style="width:100%">Fit map to this image</button>
       </div>
+      </div></div>
     </div>
 
     <div class="sec" id="secModel">
-      <h2><span class="step">3</span> model <span class="hint"><label class="toggle" style="font-size:11px"><input type="checkbox" id="showDep"><span class="sw"></span>include old</label></span></h2>
-      <div id="modelList"><div class="empty"><span class="spin"></span> loading models...</div></div>
+      <h2 class="acc"><span class="step">3</span> model <span class="hint" id="modelHint">auto</span><span class="acc-chev"></span></h2>
+      <div class="acc-body"><div class="acc-inner">
+      <div style="padding-top:2px"><div id="modelList"><div class="empty"><span class="spin"></span> loading models...</div></div></div>
+      <label class="toggle" style="font-size:11px;margin-top:11px"><input type="checkbox" id="showDep"><span class="sw"></span>include older versions</label>
+      </div></div>
     </div>
 
     <div class="sec" id="secParams">
@@ -244,16 +252,24 @@ pre .c{color:var(--faint);}
     </div>
 
     <div class="sec" id="secArea">
-      <h2><span class="step">5</span> run area <span class="hint">centered on view</span></h2>
-      <div class="pp">
-        <div class="lab"><span class="k">box size</span><span class="v" id="runSizeV">300 m</span></div>
-        <div class="ctl"><input type="range" id="runSize" min="100" max="1500" step="50" value="300"></div>
+      <h2 class="acc"><span class="step">5</span> run area <span class="hint" id="areaHint">300 m box</span><span class="acc-chev"></span></h2>
+      <div class="acc-body"><div class="acc-inner">
+      <div class="pp" style="padding-top:2px">
+        <div class="lab"><span class="k">box size</span><span class="v" id="runSizeV">4 x 4 tiles</span></div>
+        <div class="ctl"><input type="range" id="runSize" min="2" max="20" step="2" value="4"></div>
       </div>
       <div class="bbox-read" id="bboxRead">The dashed box on the map is the run area.</div>
+      <div class="pp" style="margin-top:14px">
+        <div class="lab"><span class="k">prediction fill</span><span class="v" id="predFillV">35%</span></div>
+        <div class="ctl"><input type="range" id="predFill" min="0" max="100" step="5" value="35"></div>
+        <div class="desc">How filled the result shapes are. Drag to 0 for outlines only, so you can see the imagery underneath.</div>
+      </div>
+      <label class="toggle" style="margin-top:12px"><input type="checkbox" id="showGrid" checked><span class="sw"></span>show the tile grid the model uses</label>
       <div class="row" style="margin-top:11px">
         <button class="btn mini ghost" id="drawBtn" style="flex:1">Draw custom area</button>
         <button class="btn mini ghost" id="resetArea" style="flex:1;display:none">Recenter box</button>
       </div>
+      </div></div>
     </div>
   </div>
 
@@ -262,6 +278,8 @@ pre .c{color:var(--faint);}
     <div id="status">Waiting for model, imagery and an area.</div>
   </div>
 </aside>
+
+<button id="fab" disabled>Run</button>
 
 <section id="console" class="down">
   <div class="cbar" id="cbar">
@@ -305,7 +323,7 @@ const PLACES=[
 ];
 
 const S={model:null,models:[],imagery:null,imgLayer:null,footprints:L.layerGroup(),
-  params:{},zoom:19,runSize:300,drawnRect:null,drawnBox:null,drawing:false,scenes:[],pinnedId:null,moveTimer:null,suppressClick:false,shareLock:false,resultLayer:null,lastResponse:null,tab:"curl"};
+  params:{},zoom:19,tileSpan:4,drawnRect:null,drawnBox:null,drawing:false,scenes:[],pinnedId:null,moveTimer:null,suppressClick:false,shareLock:false,runRect:null,gridLayer:null,showGrid:true,predFill:0.35,meMarker:null,resultLayer:null,lastResponse:null,tab:"curl"};
 
 const map=L.map('map',{zoomControl:false,attributionControl:true}).setView(PLACES[0].c,15);
 L.control.zoom({position:'bottomright'}).addTo(map);
@@ -358,7 +376,7 @@ function renderModels(){
     c.onclick=()=>selectModel(m); el.appendChild(c); });
 }
 function selectModel(m){ S.model=m; S.params={...m.defaults}; renderModels(); renderParams();
-  $("#secModel").classList.add("done"); $("#paramHint").textContent=m.name+" defaults"; refresh(); }
+  $("#secModel").classList.add("done"); $("#modelHint").textContent=m.name; $("#paramHint").textContent=m.name+" defaults"; refresh(); }
 
 function renderParams(){
   const grid=$("#pgrid"), m=S.model;
@@ -366,28 +384,34 @@ function renderParams(){
   const keys=Object.keys(m.defaults);
   grid.innerHTML=""; if(!keys.length){ grid.innerHTML='<div class="empty">This model takes no extra inference params.</div>'; }
   keys.forEach(k=>{ const spec=m.specs[k]||{}, val=S.params[k], wrap=document.createElement('div'); wrap.className="pp";
+    const human=k.replace(/[_\-]+/g," ").replace(/^./,c=>c.toUpperCase()).replace(/\b(tta|iou|nms|gsd|rgb|api|id|px)\b/gi,x=>x.toUpperCase());
     if(spec.type==="bool"){
-      wrap.innerHTML=`<div class="lab"><span class="k">${k}</span></div>
+      wrap.innerHTML=`<div class="lab"><span class="k">${human}</span></div>
         <label class="toggle"><input type="checkbox" ${val?'checked':''}><span class="sw"></span><small style="color:var(--muted)">${val}</small></label>
         ${spec.description?`<div class="desc">${spec.description}</div>`:''}`;
       const cb=wrap.querySelector('input'); cb.onchange=()=>{S.params[k]=cb.checked;wrap.querySelector('small').textContent=cb.checked;refresh();};
     } else if(spec.values){
-      wrap.innerHTML=`<div class="lab"><span class="k">${k}</span></div>
+      wrap.innerHTML=`<div class="lab"><span class="k">${human}</span></div>
         <select>${spec.values.map(v=>`<option ${v===val?'selected':''}>${v}</option>`).join('')}</select>
         ${spec.description?`<div class="desc">${spec.description}</div>`:''}`;
       wrap.querySelector('select').onchange=e=>{S.params[k]=e.target.value;refresh();};
     } else {
-      const isInt=spec.type==="int", min=spec.min!==undefined?spec.min:0,
-        max=spec.max!==undefined?spec.max:(isInt?32:1), step=isInt?1:niceStep(min,max);
-      wrap.innerHTML=`<div class="lab"><span class="k">${k}</span><span class="v" data-v>${val}</span></div>
+      const isInt=spec.type==="int", dv=Number(val)||0, hasRange=spec.min!==undefined&&spec.max!==undefined;
+      let min = spec.min!==undefined ? spec.min : 0;
+      let max = spec.max!==undefined ? spec.max : (isInt ? Math.max(10, Math.ceil(dv*4)) : Math.max(1, dv*4||1));
+      min=Math.min(min, dv); max=Math.max(max, dv);          // the real default must always sit inside the range
+      let step = spec.step!==undefined ? spec.step : (isInt?1:niceStep(min,max));
+      wrap.innerHTML=`<div class="lab"><span class="k">${human}</span><span class="v" data-v>${val}</span></div>
         <div class="ctl"><input type="range" min="${min}" max="${max}" step="${step}" value="${val}">
-        <input type="number" min="${min}" max="${max}" step="${step}" value="${val}"></div>
-        ${spec.description?`<div class="desc">${spec.description}</div>`:''}`;
+        <input type="number" step="${step}" value="${val}"></div>
+        <div class="desc">${spec.description?spec.description+" ":""}${hasRange?`Allowed ${min} to ${max}.`:"Type any value, or drag."}</div>`;
       const rng=wrap.querySelector('input[type=range]'),num=wrap.querySelector('input[type=number]'),lab=wrap.querySelector('[data-v]');
-      const fill=()=>rng.style.setProperty('--fill',((rng.value-min)/(max-min)*100)+'%');
-      const apply=v=>{v=isInt?Math.round(+v):+v;if(isNaN(v))return;v=Math.min(max,Math.max(min,v));
-        S.params[k]=v;rng.value=v;num.value=v;lab.textContent=v;fill();refresh();};
-      rng.oninput=()=>apply(rng.value); num.oninput=()=>apply(num.value); fill();
+      const fill=()=>rng.style.setProperty('--fill',((rng.value-min)/((max-min)||1)*100)+'%');
+      const apply=(v,typed)=>{ v=isInt?Math.round(+v):+v; if(isNaN(v))return;
+        if(v<min){ if(typed){min=v;rng.min=v;} else v=min; }
+        if(v>max){ if(typed){max=v;rng.max=v;} else v=max; }   // typing can exceed the slider; the slider just grows
+        S.params[k]=v; rng.value=v; num.value=v; lab.textContent=v; fill(); refresh(); };
+      rng.oninput=()=>apply(rng.value,false); num.oninput=()=>apply(num.value,true); fill();
     }
     grid.appendChild(wrap);
   });
@@ -399,7 +423,7 @@ $("#rawToggle").onchange=e=>{const ta=$("#rawParams");ta.style.display=e.target.
 $("#rawParams").oninput=e=>{try{S.params=JSON.parse(e.target.value);refresh();}catch(_){}}
 $("#resetP").onclick=()=>{if(S.model){S.params={...S.model.defaults};renderParams();refresh();}};
 $("#showDep").onchange=renderModels;
-function setZoom(v){v=Math.min(22,Math.max(14,+v||19));S.zoom=v;$("#zoom").value=v;$("#zoomN").value=v;$("#zoomV").textContent=v;refresh();}
+function setZoom(v){v=Math.min(22,Math.max(14,+v||19));S.zoom=v;$("#zoom").value=v;$("#zoomN").value=v;$("#zoomV").textContent=v;if(typeof refreshRunArea==="function")refreshRunArea();refresh();}
 $("#zoom").oninput=e=>setZoom(e.target.value); $("#zoomN").oninput=e=>setZoom(e.target.value);
 
 async function scanImagery(){
@@ -449,11 +473,10 @@ function selectImagery(o,auto){
   S.footprints.eachLayer(l=>l.setStyle&&l.setStyle({color:GREY,opacity:.45,weight:1}));
   if(o.fp) o.fp.setStyle({color:DARK,opacity:.95,weight:2});
   if(S.imgLayer) map.removeLayer(S.imgLayer);
-  if(o.template){ S.imgLayer=L.tileLayer(o.template,{maxZoom:22,maxNativeZoom:22,updateWhenZooming:false,keepBuffer:2}).addTo(map);
-    S.imgLayer.setOpacity(+$("#opacity").value/100); }
+  if(o.template){ S.imgLayer=L.tileLayer(o.template,{maxZoom:22,maxNativeZoom:22,updateWhenZooming:false,keepBuffer:2}).addTo(map); }
   S.imagery={image_uri:o.image_uri,template:o.template,title:o.title,col:o.col,geom:o.geom,id:o.id};
   if(!auto) S.pinnedId=o.id||o.title;
-  $("#secImg").classList.add("done");
+  $("#secImg").classList.add("done"); $("#imgHint").textContent=(o.title||"loaded").slice(0,20);
   $("#imgCtl").style.display = o.template ? "block" : "none";
   if(!auto){ const gj=L.geoJSON(o.geom); map.fitBounds(gj.getBounds(),{maxZoom:18,padding:[40,40]}); }
   setStatus(auto?`Imagery: ${o.title}`:`Loaded imagery: ${o.title}`); readoutRunArea(); refresh();
@@ -466,44 +489,70 @@ function autoPick(){
   const choose = pinned || hits[0] || S.scenes[0];
   if(choose) selectImagery(choose,true);
 }
-$("#opacity").oninput=e=>{ const v=+e.target.value; $("#opV").textContent=v+"%";
-  e.target.style.setProperty('--fill',v+'%'); if(S.imgLayer) S.imgLayer.setOpacity(v/100); };
-$("#opacity").style.setProperty('--fill','100%');
-$("#runSize").style.setProperty('--fill',((300-100)/1400*100)+'%');
+$("#runSize").style.setProperty('--fill',((4-2)/18*100)+'%');
+$("#predFill").style.setProperty('--fill','35%');
 $("#fitImg").onclick=()=>{ if(S.imagery&&S.imagery.geom){ const gj=L.geoJSON(S.imagery.geom); map.fitBounds(gj.getBounds(),{padding:[40,40]}); } };
 
-function metersPerPixel(){ return 156543.03392 * Math.cos(map.getCenter().lat*Math.PI/180) / Math.pow(2, map.getZoom()); }
-function runBounds(){
-  if(S.drawnBox) return S.drawnBox;
-  const c=map.getCenter(), d=S.runSize/2;
-  const dLat=d/111320, dLon=d/(111320*Math.cos(c.lat*Math.PI/180));
-  return L.latLngBounds([c.lat-dLat,c.lng-dLon],[c.lat+dLat,c.lng+dLon]);
+// ---- Run area snapped to the web mercator (XYZ) tile grid the backend tiles on ----
+function lon2tileX(lon,z){ return (lon+180)/360*Math.pow(2,z); }
+function lat2tileY(lat,z){ const r=lat*Math.PI/180; return (1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*Math.pow(2,z); }
+function tileX2lon(x,z){ return x/Math.pow(2,z)*360-180; }
+function tileY2lat(y,z){ const n=Math.PI-2*Math.PI*y/Math.pow(2,z); return 180/Math.PI*Math.atan(0.5*(Math.exp(n)-Math.exp(-n))); }
+function snappedRun(){
+  const z=S.zoom;
+  let x0,x1,y0,y1;
+  if(S.drawnBox){
+    const b=S.drawnBox;
+    x0=Math.floor(lon2tileX(b.getWest(),z)); x1=Math.ceil(lon2tileX(b.getEast(),z));
+    y0=Math.floor(lat2tileY(b.getNorth(),z)); y1=Math.ceil(lat2tileY(b.getSouth(),z));
+    if(x1<=x0) x1=x0+1; if(y1<=y0) y1=y0+1;
+    if((x1-x0)%2) x1++;                          // keep each side even, never odd
+    if((y1-y0)%2) y1++;
+  } else {
+    const c=map.getCenter(), N=S.tileSpan;       // N is always even; box is N x N tiles centered on the view
+    x0=Math.round(lon2tileX(c.lng,z)-N/2); y0=Math.round(lat2tileY(c.lat,z)-N/2);
+    x1=x0+N; y1=y0+N;
+  }
+  return {bounds:L.latLngBounds([tileY2lat(y1,z),tileX2lon(x0,z)],[tileY2lat(y0,z),tileX2lon(x1,z)]),
+    tiles:{x0,x1,y0,y1,z,nx:x1-x0,ny:y1-y0}};
 }
-function effectiveBbox(){ const b=runBounds();
-  return [b.getWest(),b.getSouth(),b.getEast(),b.getNorth()].map(fmt); }
-function updateRunBox(){
-  const rb=$("#runbox");
-  if(S.drawnBox){ rb.style.display="none"; return; }
-  rb.style.display="block";
-  const px=Math.max(8, S.runSize/metersPerPixel());
-  rb.style.width=px+"px"; rb.style.height=px+"px";
+function effectiveBbox(){ const b=snappedRun().bounds, r=v=>Math.round(v*1e9)/1e9;
+  return [r(b.getWest()),r(b.getSouth()),r(b.getEast()),r(b.getNorth())]; }
+function drawRunBox(){
+  const sr=snappedRun();
+  if(!S.runRect){ S.runRect=L.rectangle(sr.bounds,{color:RED,weight:2,fill:false,dashArray:"6 4",className:"aoi",interactive:false}).addTo(map); }
+  else S.runRect.setBounds(sr.bounds);
+}
+function drawGrid(){
+  if(!S.gridLayer){ S.gridLayer=L.layerGroup().addTo(map); }
+  S.gridLayer.clearLayers();
+  if(!S.showGrid) return;
+  const t=snappedRun().tiles;
+  if(t.nx*t.ny>2500) return;                              // too dense to draw; the box still snaps
+  const n=tileY2lat(t.y0,t.z), s=tileY2lat(t.y1,t.z), w=tileX2lon(t.x0,t.z), e=tileX2lon(t.x1,t.z);
+  const ln=ll=>L.polyline(ll,{color:"#ffffff",weight:1,opacity:.55,interactive:false}).addTo(S.gridLayer);
+  for(let x=t.x0;x<=t.x1;x++){ const lo=tileX2lon(x,t.z); ln([[n,lo],[s,lo]]); }
+  for(let y=t.y0;y<=t.y1;y++){ const la=tileY2lat(y,t.z); ln([[la,w],[la,e]]); }
 }
 function readoutRunArea(){
-  const [w,s,e,n]=effectiveBbox(), lat=(s+n)/2, mLon=111320*Math.cos(lat*Math.PI/180),
-    W=Math.abs(e-w)*mLon, H=Math.abs(n-s)*111320;
-  $("#bboxRead").innerHTML=`Run area: <b>${Math.round(W)} x ${Math.round(H)} m</b> (${(W*H/1e6).toFixed(3)} km2)${S.drawnBox?", custom box":", follows your view"}.`;
+  const sr=snappedRun(), b=sr.bounds, t=sr.tiles, lat=(b.getSouth()+b.getNorth())/2, mLon=111320*Math.cos(lat*Math.PI/180),
+    W=Math.abs(b.getEast()-b.getWest())*mLon, H=Math.abs(b.getNorth()-b.getSouth())*111320;
+  $("#bboxRead").innerHTML=`Snapped to the tile grid at zoom ${t.z}: <b>${t.nx} x ${t.ny} tiles</b>, about <b>${Math.round(W)} x ${Math.round(H)} m</b>${S.drawnBox?", custom box":""}.`;
+  $("#areaHint").textContent = S.drawnBox?"custom box":(t.nx+"x"+t.ny+" tiles");
 }
-$("#runSize").oninput=e=>{ S.runSize=+e.target.value; $("#runSizeV").textContent=S.runSize+" m";
-  e.target.style.setProperty('--fill',((S.runSize-100)/(1500-100)*100)+'%');
-  updateRunBox(); readoutRunArea(); refresh(); };
-function setDrawnBox(bounds){ S.drawnBox=bounds;
-  if(S.drawnRect) map.removeLayer(S.drawnRect);
-  S.drawnRect=L.rectangle(bounds,{color:DARK,weight:2,fill:false,dashArray:"6 4",className:"aoi",interactive:false}).addTo(map);
-  updateRunBox(); $("#resetArea").style.display="block"; readoutRunArea(); refresh();
-}
-$("#resetArea").onclick=()=>{ S.drawnBox=null; if(S.drawnRect){map.removeLayer(S.drawnRect);S.drawnRect=null;}
-  updateRunBox(); $("#resetArea").style.display="none"; readoutRunArea(); refresh(); };
-map.on('zoomend',updateRunBox);
+function refreshRunArea(){ drawRunBox(); drawGrid(); readoutRunArea(); }
+let rafBox=false;
+function scheduleBox(){ if(rafBox) return; rafBox=true; requestAnimationFrame(()=>{ rafBox=false; drawRunBox(); }); }
+$("#runSize").oninput=e=>{ S.tileSpan=+e.target.value; $("#runSizeV").textContent=S.tileSpan+" x "+S.tileSpan+" tiles";
+  e.target.style.setProperty('--fill',((S.tileSpan-2)/(20-2)*100)+'%');
+  refreshRunArea(); refresh(); };
+$("#predFill").oninput=e=>{ const v=+e.target.value; S.predFill=v/100; $("#predFillV").textContent=v+"%";
+  e.target.style.setProperty('--fill',v+'%'); if(S.resultLayer) S.resultLayer.setStyle({fillOpacity:S.predFill}); };
+$("#showGrid").onchange=e=>{ S.showGrid=e.target.checked; drawGrid(); };
+function setDrawnBox(bounds){ S.drawnBox=bounds; refreshRunArea(); $("#resetArea").style.display="block"; refresh(); }
+$("#resetArea").onclick=()=>{ S.drawnBox=null; refreshRunArea(); $("#resetArea").style.display="none"; refresh(); };
+map.on('zoomend',refreshRunArea);
+map.on('move',scheduleBox);
 let dStart=null, dRect=null;
 $("#drawBtn").onclick=()=>{ S.drawing=!S.drawing;
   $("#drawBtn").textContent=S.drawing?"Cancel":"Draw custom area";
@@ -536,7 +585,7 @@ map.on('click',e=>{ if(S.drawing||S.suppressClick) return;
   selectImagery(hits[0]); });
 
 map.on('moveend',()=>{ if(S.drawing) return; clearTimeout(S.moveTimer); S.moveTimer=setTimeout(()=>{
-  if(!S.drawnBox) updateRunBox();
+  refreshRunArea();
   readoutRunArea();
   if(S.shareLock) return;
   const c=map.getCenter();
@@ -557,7 +606,8 @@ function colorJSON(str){ return str.replace(/&/g,"&amp;").replace(/</g,"&lt;")
   .replace(/: ("(?:[^"\\]|\\.)*")/g,': <span class="s">$1</span>')
   .replace(/: (-?\d+\.?\d*)/g,': <span class="n">$1</span>'); }
 function refresh(){
-  const body=buildBody(); $("#runBtn").disabled=!body;
+  const body=buildBody(); const dis=!body; $("#runBtn").disabled=dis;
+  const fab=document.getElementById('fab'); if(fab) fab.disabled=dis;
   if(body && $("#status").dataset.state!=="busy" && $("#status").dataset.state!=="done")
     setStatus(`Ready: ${S.model.name} on ${S.imagery.title.slice(0,22)}`);
   if(S.tab==="curl") $("#curlOut").innerHTML=body?colorJSON(buildCurl(body,S.model.endpoint)):'<span class="c">// select a model, imagery and an area to build the request</span>';
@@ -580,8 +630,8 @@ async function runInference(){
     let gj; try{ gj=JSON.parse(txt); }catch(_){ gj=null; } S.lastResponse=gj||txt;
     if(gj&&(gj.type==="FeatureCollection"||gj.features)){
       const n=(gj.features||[]).length;
-      S.resultLayer=L.geoJSON(gj,{interactive:false,style:{color:RED,weight:2,fillColor:RED,fillOpacity:.35,className:"pred"},
-        pointToLayer:(f,ll)=>L.circleMarker(ll,{radius:5,color:RED,weight:2,fillColor:RED,fillOpacity:.5,interactive:false,className:"pred"})}).addTo(map);
+      S.resultLayer=L.geoJSON(gj,{interactive:false,style:{color:RED,weight:2,fillColor:RED,fillOpacity:S.predFill,className:"pred"},
+        pointToLayer:(f,ll)=>L.circleMarker(ll,{radius:5,color:RED,weight:2,fillColor:RED,fillOpacity:Math.max(S.predFill,.25),interactive:false,className:"pred"})}).addTo(map);
       if(n) map.fitBounds(S.resultLayer.getBounds(),{padding:[60,60],maxZoom:20});
       map.removeLayer(S.footprints);
       setStatus(`<span class="ok">OK: ${n} feature${n!==1?'s':''}</span>, ${dt}s`,"done");
@@ -605,7 +655,7 @@ function shareURL(){
   if(S.model) sp.set('m',S.model.id);
   sp.set('zoom',S.zoom);
   if(S.drawnBox){ const b=S.drawnBox; sp.set('bbox',[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()].map(fmt).join(',')); }
-  else sp.set('size',S.runSize);
+  else sp.set('size',S.tileSpan);
   if(S.imagery){ sp.set('img',S.imagery.image_uri); if(S.imagery.template) sp.set('tmpl',S.imagery.template); if(S.imagery.title) sp.set('name',S.imagery.title); }
   sp.set('p',JSON.stringify(S.params));
   sp.set('run','1');
@@ -627,13 +677,13 @@ async function applyShare(sp){
   const lat=parseFloat(sp.get('lat')), lng=parseFloat(sp.get('lng')), z=parseInt(sp.get('z'))||16;
   if(isFinite(lat)&&isFinite(lng)) map.setView([lat,lng],z);
   if(sp.has('zoom')) setZoom(parseInt(sp.get('zoom')));
-  if(sp.has('size')){ S.runSize=parseInt(sp.get('size'))||300; $("#runSize").value=S.runSize;
-    $("#runSizeV").textContent=S.runSize+" m"; $("#runSize").style.setProperty('--fill',((S.runSize-100)/1400*100)+'%'); updateRunBox(); }
+  if(sp.has('size')){ let n=parseInt(sp.get('size'))||4; if(n%2)n++; n=Math.min(20,Math.max(2,n)); S.tileSpan=n; $("#runSize").value=n;
+    $("#runSizeV").textContent=n+" x "+n+" tiles"; $("#runSize").style.setProperty('--fill',((n-2)/18*100)+'%'); refreshRunArea(); }
   if(sp.has('bbox')){ const a=sp.get('bbox').split(',').map(Number); if(a.length===4) setDrawnBox(L.latLngBounds([a[1],a[0]],[a[3],a[2]])); }
   if(sp.has('img')){
     if(S.imgLayer) map.removeLayer(S.imgLayer);
     const tmpl=sp.get('tmpl')||null;
-    if(tmpl){ S.imgLayer=L.tileLayer(tmpl,{maxZoom:22,maxNativeZoom:22,updateWhenZooming:false,keepBuffer:2}).addTo(map); S.imgLayer.setOpacity(+$("#opacity").value/100); }
+    if(tmpl){ S.imgLayer=L.tileLayer(tmpl,{maxZoom:22,maxNativeZoom:22,updateWhenZooming:false,keepBuffer:2}).addTo(map); }
     S.imagery={image_uri:sp.get('img'),template:tmpl,title:sp.get('name')||"Shared imagery",col:"",geom:null,id:"shared"};
     S.pinnedId="shared"; $("#secImg").classList.add("done"); $("#imgHint").textContent="from link";
     $("#imgList").innerHTML='<div class="empty">Imagery loaded from a shared link. Hit Scan to browse other imagery here.</div>';
@@ -655,21 +705,41 @@ $("#copyBtn").onclick=()=>{ const txt=$("#curlOut").innerText;
 
 function renderChips(){ const el=$("#placeChips");
   PLACES.forEach(p=>{ const c=document.createElement('span'); c.className="chip"; c.textContent=p.n;
-    c.onclick=()=>{ S.shareLock=false; map.setView(p.c,16); $("#secLoc").classList.add("done"); }; el.appendChild(c); }); }
+    c.onclick=()=>{ S.shareLock=false; map.setView(p.c,16); $("#secLoc").classList.add("done"); maybeCollapse(); }; el.appendChild(c); }); }
 async function geocode(){ const q=$("#geo").value.trim(); if(!q)return; $("#geoBtn").textContent="...";
   try{ const r=await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`,{headers:{Accept:"application/json"}});
-    const d=await r.json(); if(d[0]){ S.shareLock=false; map.setView([+d[0].lat,+d[0].lon],16); $("#secLoc").classList.add("done"); }
+    const d=await r.json(); if(d[0]){ S.shareLock=false; map.setView([+d[0].lat,+d[0].lon],16); $("#secLoc").classList.add("done"); maybeCollapse(); }
     else setStatus(`<span class="err">No match for "${q}"</span>`); }
   catch(e){ setStatus('<span class="err">Geocode failed</span>'); } $("#geoBtn").textContent="Go"; }
 $("#geoBtn").onclick=geocode;
+$("#locBtn").onclick=()=>{
+  if(!navigator.geolocation){ setStatus('<span class="err">Location is not available in this browser</span>'); return; }
+  const b=$("#locBtn"); b.disabled=true; b.style.opacity=".6";
+  setStatus('<span class="spin"></span> finding your location...');
+  navigator.geolocation.getCurrentPosition(pos=>{
+    b.disabled=false; b.style.opacity="";
+    const lat=pos.coords.latitude, lng=pos.coords.longitude;
+    S.shareLock=false; map.setView([lat,lng],16);
+    if(S.meMarker) map.removeLayer(S.meMarker);
+    S.meMarker=L.circleMarker([lat,lng],{radius:7,color:RED,weight:3,fillColor:"#fff",fillOpacity:1})
+      .addTo(map).bindTooltip("You are here");
+    $("#secLoc").classList.add("done"); setStatus("Centered on your location."); maybeCollapse();
+  }, err=>{
+    b.disabled=false; b.style.opacity="";
+    setStatus('<span class="err">Could not get your location'+(err&&err.code===1?", permission denied":"")+'</span>. You can search a place instead.');
+  }, {enableHighAccuracy:true,timeout:10000,maximumAge:60000});
+};
 $("#geo").addEventListener('keydown',e=>{ if(e.key==="Enter") geocode(); });
 $("#scanBtn").onclick=scanImagery; $("#imgCol").onchange=scanImagery;
 $("#burger").onclick=()=>$("#panel").classList.toggle("collapsed");
-$("#secParams h2.acc").onclick=()=>$("#secParams").classList.toggle("open");
+$("#panelClose").onclick=()=>$("#panel").classList.add("collapsed");
+$("#fab").onclick=runInference;
+function maybeCollapse(){ if(window.innerWidth<=760) setTimeout(()=>$("#panel").classList.add("collapsed"),300); }
+document.querySelectorAll('.sec h2.acc').forEach(h=>h.onclick=()=>h.closest('.sec').classList.toggle('open'));
 
 renderChips();
 modelsReady=loadModels();
-$("#secArea").classList.add("done"); updateRunBox(); readoutRunArea();
+$("#secArea").classList.add("done"); refreshRunArea();
 const shared=parseShare();
 if(shared) applyShare(shared); else scanImagery();
 refresh();
